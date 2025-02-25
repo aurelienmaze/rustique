@@ -5,8 +5,7 @@ use crate::localization::{Language, get_text};
 // Enum to represent actions from the main menu
 pub enum MenuAction {
     NewCanvas(u32, u32),
-    OpenPng,
-    OpenRustiq
+    OpenFile,
 }
 
 // Result from main menu
@@ -135,20 +134,11 @@ impl MainMenu {
 
                             ui.add_space(15.0);
                             
-                            let open_png_text = RichText::new(get_text("open_png", self.language))
+                            let open_file_text = RichText::new(get_text("open_file", self.language))
                                 .size(16.0);
                             
-                            if ui.add(egui::Button::new(open_png_text).min_size(Vec2::new(180.0, 30.0))).clicked() {
-                                result = Some(MenuResult::Action(MenuAction::OpenPng));
-                            }
-
-                            ui.add_space(10.0);
-                            
-                            let open_rustiq_text = RichText::new(get_text("open_rustiq", self.language))
-                                .size(16.0);
-                            
-                            if ui.add(egui::Button::new(open_rustiq_text).min_size(Vec2::new(180.0, 30.0))).clicked() {
-                                result = Some(MenuResult::Action(MenuAction::OpenRustiq));
+                            if ui.add(egui::Button::new(open_file_text).min_size(Vec2::new(180.0, 30.0))).clicked() {
+                                result = Some(MenuResult::Action(MenuAction::OpenFile));
                             }
                         });
                     });

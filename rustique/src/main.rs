@@ -3,11 +3,11 @@ mod localization;
 
 use eframe::egui;
 use egui::{Color32, TextureHandle, TextureOptions, Rect, Pos2, Vec2, Stroke};
-use image::{ImageBuffer, Rgba};
+use image::{ImageBuffer, Rgba, ImageFormat};
 use std::collections::VecDeque;
 use rfd::FileDialog;
 use std::time::{Duration, Instant};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::Write;
 use serde::{Serialize, Deserialize};
@@ -31,6 +31,59 @@ enum Tool {
     PaintBucket,
     ColorPicker,
     Line,
+}
+
+// Enum to represent supported file formats
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum FileFormat {
+    Png,
+    Jpeg,
+    Bmp,
+    Tiff,
+    Gif,
+    WebP,
+    Rustiq,
+    Unknown,
+}
+
+impl FileFormat {
+    fn from_extension(ext: &str) -> Self {
+        match ext.to_lowercase().as_str() {
+            "png" => FileFormat::Png,
+            "jpg" | "jpeg" => FileFormat::Jpeg,
+            "bmp" => FileFormat::Bmp,
+            "tiff" | "tif" => FileFormat::Tiff,
+            "gif" => FileFormat::Gif,
+            "webp" => FileFormat::WebP,
+            "rustiq" => FileFormat::Rustiq,
+            _ => FileFormat::Unknown,
+        }
+    }
+    
+    fn get_image_format(&self) -> Option<ImageFormat> {
+        match self {
+            FileFormat::Png => Some(ImageFormat::Png),
+            FileFormat::Jpeg => Some(ImageFormat::Jpeg),
+            FileFormat::Bmp => Some(ImageFormat::Bmp),
+            FileFormat::Tiff => Some(ImageFormat::Tiff),
+            FileFormat::Gif => Some(ImageFormat::Gif),
+            FileFormat::WebP => Some(ImageFormat::WebP),
+            _ => None,
+        }
+    }
+    
+    fn extension(&self) -> &'static str {
+        match self {
+            FileFormat::Png => "png",
+            FileFormat::Jpeg => "jpg",
+            FileFormat::Bmp => "bmp",
+            FileFormat::Tiff => "tiff",
+            FileFormat::Gif => "gif",
+            FileFormat::WebP => "webp",
+            FileFormat::Rustiq => "rustiq",
+            FileFormat::Unknown => "",
+        }
+    }
 }
 
 // Enum to represent the current state of the application
@@ -175,6 +228,7 @@ struct PaintApp {
     line_start: Option<(i32, i32)>,
     line_end: Option<(i32, i32)>,
     is_drawing_line: bool,
+    is_first_click_line: bool,
     has_unsaved_changes: bool,
     last_save_path: Option<String>,
     save_dialog: SaveDialog,
@@ -206,6 +260,7 @@ impl PaintApp {
             line_start: None,
             line_end: None,
             is_drawing_line: false,
+            is_first_click_line: true,
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
@@ -286,59 +341,150 @@ impl PaintApp {
             line_start: None,
             line_end: None,
             is_drawing_line: false,
+            is_first_click_line: true,
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
             language,
         }
     }
+
+    // New method to detect file format from path
+    fn detect_format(path: &str) -> FileFormat {
+        PathBuf::from(path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(FileFormat::from_extension)
+            .unwrap_or(FileFormat::Unknown)
+    }
     
-    // Create a PaintApp from a PNG file
-    fn from_png_file(path: &str, language: Language) -> Option<Self> {
-        match image::open(path) {
-            Ok(img) => {
-                let width = img.width() as usize;
-                let height = img.height() as usize;
-                let mut canvas = CanvasState::new(width, height);
-                
-                let rgba_img = img.to_rgba8();
-                for y in 0..height {
-                    for x in 0..width {
-                        let pixel = rgba_img.get_pixel(x as u32, y as u32);
-                        if pixel[3] > 0 { // Not fully transparent
-                            let color = Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]);
-                            canvas.set(x, y, Some(color));
-                        }
-                    }
-                }
-                
-                Some(Self {
-                    current_state: canvas,
-                    undo_stack: Vec::new(),
-                    redo_stack: Vec::new(),
-                    current_changes: Vec::new(),
-                    current_tool: Tool::Brush,
-                    primary_color: Color32::BLACK,
-                    secondary_color: Color32::WHITE,
-                    saved_colors: Vec::new(),
-                    brush_size: 3,
-                    eraser_size: 3,
-                    last_position: None,
-                    is_drawing: false,
-                    last_action_time: Instant::now(),
-                    texture: None,
-                    texture_dirty: true,
-                    zoom: 1.0,
-                    pan: Vec2::ZERO,
-                    line_start: None,
-                    line_end: None,
-                    is_drawing_line: false,
-                    has_unsaved_changes: false,
-                    last_save_path: None,
-                    save_dialog: SaveDialog::Hidden,
-                    language,
-                })
+    // Unified save method
+    fn save_file(&mut self, path: &str) -> Result<(), String> {
+        let format = Self::detect_format(path);
+        
+        match format {
+            FileFormat::Rustiq => self.save_as_rustiq(path),
+            FileFormat::Unknown => {
+                Err(format!("{}: {}", get_text("format_not_supported", self.language), path))
             },
+            _ => {
+                // Handle image formats
+                if let Some(image_format) = format.get_image_format() {
+                    self.save_as_image(path, image_format)
+                } else {
+                    Err(format!("{}: {}", get_text("format_not_supported", self.language), path))
+                }
+            }
+        }
+    }
+    
+    // Save as image with any supported format
+    fn save_as_image(&mut self, path: &str, format: ImageFormat) -> Result<(), String> {
+        let width = self.current_state.width;
+        let height = self.current_state.height;
+        let mut img = ImageBuffer::new(width as u32, height as u32);
+        
+        // Process rows one by one
+        for y in 0..height {
+            for x in 0..width {
+                let color = self.current_state.get(x, y).unwrap_or(Color32::TRANSPARENT);
+                img.put_pixel(x as u32, y as u32, Rgba([color.r(), color.g(), color.b(), color.a()]));
+            }
+        }
+
+        match img.save_with_format(path, format) {
+            Ok(_) => {
+                self.has_unsaved_changes = false;
+                self.last_save_path = Some(path.to_string());
+                Ok(())
+            },
+            Err(e) => Err(format!("{}: {}", get_text("error_saving_image", self.language), e)),
+        }
+    }
+    
+    // Open any supported file
+    fn open_file(path: &str, language: Language) -> Result<Self, String> {
+        let format = Self::detect_format(path);
+        
+        match format {
+            FileFormat::Rustiq => {
+                // Open Rustiq file
+                match fs::read_to_string(path) {
+                    Ok(content) => {
+                        match serde_json::from_str::<RustiqueFile>(&content) {
+                            Ok(file) => {
+                                let mut app = Self::from_rustiq_file(file, language);
+                                app.last_save_path = Some(path.to_string());
+                                Ok(app)
+                            },
+                            Err(e) => Err(format!("{}: {}", get_text("error_reading_rustiq", language), e))
+                        }
+                    },
+                    Err(e) => Err(format!("{}: {}", get_text("error_reading_file", language), e))
+                }
+            },
+            FileFormat::Unknown => {
+                Err(format!("{}: {}", get_text("format_not_supported", language), path))
+            },
+            _ => {
+                // Open image file
+                match image::open(path) {
+                    Ok(img) => {
+                        let width = img.width() as usize;
+                        let height = img.height() as usize;
+                        let mut canvas = CanvasState::new(width, height);
+                        
+                        let rgba_img = img.to_rgba8();
+                        for y in 0..height {
+                            for x in 0..width {
+                                let pixel = rgba_img.get_pixel(x as u32, y as u32);
+                                if pixel[3] > 0 { // Not fully transparent
+                                    let color = Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]);
+                                    canvas.set(x, y, Some(color));
+                                }
+                            }
+                        }
+                        
+                        let mut app = Self {
+                            current_state: canvas,
+                            undo_stack: Vec::new(),
+                            redo_stack: Vec::new(),
+                            current_changes: Vec::new(),
+                            current_tool: Tool::Brush,
+                            primary_color: Color32::BLACK,
+                            secondary_color: Color32::WHITE,
+                            saved_colors: Vec::new(),
+                            brush_size: 3,
+                            eraser_size: 3,
+                            last_position: None,
+                            is_drawing: false,
+                            last_action_time: Instant::now(),
+                            texture: None,
+                            texture_dirty: true,
+                            zoom: 1.0,
+                            pan: Vec2::ZERO,
+                            line_start: None,
+                            line_end: None,
+                            is_drawing_line: false,
+                            is_first_click_line: true,
+                            has_unsaved_changes: false,
+                            last_save_path: Some(path.to_string()),
+                            save_dialog: SaveDialog::Hidden,
+                            language,
+                        };
+                        
+                        Ok(app)
+                    },
+                    Err(e) => Err(format!("{}: {}", get_text("unable_to_open_image", language), e))
+                }
+            }
+        }
+    }
+    
+    // Create a PaintApp from a PNG file (deprecated but kept for backward compatibility)
+    fn from_png_file(path: &str, language: Language) -> Option<Self> {
+        match Self::open_file(path, language) {
+            Ok(app) => Some(app),
             Err(_) => None
         }
     }
@@ -407,17 +553,23 @@ impl PaintApp {
         }
     }
     
+    // Save as PNG (deprecated but kept for backward compatibility)
+    fn save_as_png(&mut self, path: &str) -> Result<(), String> {
+        // Make sure path has .png extension
+        let path_with_ext = if !path.to_lowercase().ends_with(".png") {
+            format!("{}.png", path)
+        } else {
+            path.to_string()
+        };
+
+        self.save_as_image(&path_with_ext, ImageFormat::Png)
+    }
+    
     // Save the current canvas using the last save path
     fn quick_save(&mut self) -> Result<(), String> {
-        if let Some(_path) = &self.last_save_path {
-            let path_clone = self.last_save_path.as_ref().unwrap().clone();
-            if path_clone.ends_with(".png") {
-                self.save_as_png(&path_clone)
-            } else if path_clone.ends_with(".rustiq") {
-                self.save_as_rustiq(&path_clone)
-            } else {
-                Err(get_text("format_not_supported", self.language))
-            }
+        if let Some(path) = &self.last_save_path {
+            let path_clone = path.clone(); // Clone the path to end the immutable borrow
+            self.save_file(&path_clone)    // Use the cloned path
         } else {
             Err(get_text("no_previous_path", self.language))
         }
@@ -564,13 +716,13 @@ impl PaintApp {
                 let layer_index_backup = self.current_state.active_layer_index;
                 self.current_state.active_layer_index = change.layer_index;
                 
-                let current_color = self.current_state.get_from_active_layer(change.x, change.y);
+                // Store the original change for redo
                 redo_changes.push(CanvasChange {
                     x: change.x,
                     y: change.y,
                     layer_index: change.layer_index,
-                    old_color: current_color,
-                    new_color: change.old_color,
+                    old_color: change.old_color,  // Keep the original old color
+                    new_color: change.new_color,  // Keep the original new color
                 });
                 
                 self.current_state.set(change.x, change.y, change.old_color);
@@ -758,37 +910,6 @@ impl PaintApp {
         }
     }
 
-    // Optimized PNG saving
-    fn save_as_png(&mut self, path: &str) -> Result<(), String> {
-        let width = self.current_state.width;
-        let height = self.current_state.height;
-        let mut img = ImageBuffer::new(width as u32, height as u32);
-        
-        // Make sure path has .png extension
-        let path_with_ext = if !path.to_lowercase().ends_with(".png") {
-            format!("{}.png", path)
-        } else {
-            path.to_string()
-        };
-
-        // Process rows one by one
-        for y in 0..height {
-            for x in 0..width {
-                let color = self.current_state.get(x, y).unwrap_or(Color32::TRANSPARENT);
-                img.put_pixel(x as u32, y as u32, Rgba([color.r(), color.g(), color.b(), color.a()]));
-            }
-        }
-
-        match img.save(&path_with_ext) {
-            Ok(_) => {
-                self.has_unsaved_changes = false;
-                self.last_save_path = Some(path_with_ext);
-                Ok(())
-            },
-            Err(e) => Err(format!("{}: {}", get_text("error_saving_png", self.language), e)),
-        }
-    }
-
     // Optimized texture update
     fn update_texture(&mut self, ctx: &egui::Context) {
         if self.texture_dirty {
@@ -973,41 +1094,22 @@ impl eframe::App for MyApp {
                                 main_menu::MenuAction::NewCanvas(width, height) => {
                                     self.state = AppState::Canvas(PaintApp::new(width, height, self.language));
                                 },
-                                main_menu::MenuAction::OpenPng => {
+                                main_menu::MenuAction::OpenFile => {
                                     if let Some(path) = FileDialog::new()
+                                        .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                         .add_filter("PNG Image", &["png"])
-                                        .set_directory("/")
-                                        .pick_file() {
-                                        match PaintApp::from_png_file(path.to_str().unwrap(), self.language) {
-                                            Some(app) => self.state = AppState::Canvas(app),
-                                            None => {
-                                                self.error_message = Some(get_text("unable_to_open_png", self.language));
-                                                self.show_error = true;
-                                            }
-                                        }
-                                    }
-                                },
-                                main_menu::MenuAction::OpenRustiq => {
-                                    if let Some(path) = FileDialog::new()
+                                        .add_filter("JPEG Image", &["jpg", "jpeg"])
+                                        .add_filter("BMP Image", &["bmp"])
+                                        .add_filter("TIFF Image", &["tiff", "tif"])
+                                        .add_filter("GIF Image", &["gif"])
+                                        .add_filter("WebP Image", &["webp"])
                                         .add_filter("Rustique File", &["rustiq"])
                                         .set_directory("/")
                                         .pick_file() {
-                                        match fs::read_to_string(&path) {
-                                            Ok(content) => {
-                                                match serde_json::from_str::<RustiqueFile>(&content) {
-                                                    Ok(file) => {
-                                                        let mut app = PaintApp::from_rustiq_file(file, self.language);
-                                                        app.last_save_path = Some(path.to_string_lossy().to_string());
-                                                        self.state = AppState::Canvas(app);
-                                                    },
-                                                    Err(e) => {
-                                                        self.error_message = Some(format!("{}: {}", get_text("error_reading_rustiq", self.language), e));
-                                                        self.show_error = true;
-                                                    }
-                                                }
-                                            },
+                                        match PaintApp::open_file(path.to_str().unwrap(), self.language) {
+                                            Ok(app) => self.state = AppState::Canvas(app),
                                             Err(e) => {
-                                                self.error_message = Some(format!("{}: {}", get_text("error_reading_file", self.language), e));
+                                                self.error_message = Some(e);
                                                 self.show_error = true;
                                             }
                                         }
@@ -1047,34 +1149,21 @@ impl eframe::App for MyApp {
                         } else {
                             // Show save dialog
                             if let Some(path) = FileDialog::new()
+                                .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                 .add_filter("PNG Image", &["png"])
+                                .add_filter("JPEG Image", &["jpg", "jpeg"])
+                                .add_filter("BMP Image", &["bmp"])
+                                .add_filter("TIFF Image", &["tiff", "tif"])
+                                .add_filter("GIF Image", &["gif"])
+                                .add_filter("WebP Image", &["webp"])
                                 .add_filter("Rustique File", &["rustiq"])
                                 .set_directory("/")
                                 .save_file() {
-                                let path_str = path.to_str().unwrap();
-                                if path_str.ends_with(".png") {
-                                    match paint_app.save_as_png(path_str) {
-                                        Ok(_) => {},
-                                        Err(e) => {
-                                            self.error_message = Some(e);
-                                            self.show_error = true;
-                                        }
-                                    }
-                                } else if path_str.ends_with(".rustiq") {
-                                    match paint_app.save_as_rustiq(path_str) {
-                                        Ok(_) => {},
-                                        Err(e) => {
-                                            self.error_message = Some(e);
-                                            self.show_error = true;
-                                        }
-                                    }
-                                } else {
-                                    match paint_app.save_as_rustiq(&format!("{}.rustiq", path_str)) {
-                                        Ok(_) => {},
-                                        Err(e) => {
-                                            self.error_message = Some(e);
-                                            self.show_error = true;
-                                        }
+                                match paint_app.save_file(path.to_str().unwrap()) {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        self.error_message = Some(e);
+                                        self.show_error = true;
                                     }
                                 }
                             }
@@ -1094,25 +1183,21 @@ impl eframe::App for MyApp {
                                 ui.label(get_text("want_to_save_changes", self.language));
                                 ui.horizontal(|ui| {
                                     if ui.button(get_text("yes", self.language)).clicked() {
-                                        // Ouvrir la boîte de dialogue de sauvegarde
+                                        // Open save dialog
                                         let result = if let Some(path) = FileDialog::new()
-                                            .add_filter("Rustique File", &["rustiq"])
+                                            .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                             .add_filter("PNG Image", &["png"])
+                                            .add_filter("JPEG Image", &["jpg", "jpeg"])
+                                            .add_filter("BMP Image", &["bmp"])
+                                            .add_filter("TIFF Image", &["tiff", "tif"])
+                                            .add_filter("GIF Image", &["gif"])
+                                            .add_filter("WebP Image", &["webp"])
+                                            .add_filter("Rustique File", &["rustiq"])
                                             .set_directory("/")
                                             .save_file() {
-                                            let path_str = path.to_str().unwrap();
-                                            if path_str.ends_with(".png") {
-                                                paint_app.save_as_png(path_str)
-                                            } else {
-                                                let path_with_ext = if !path_str.ends_with(".rustiq") {
-                                                    format!("{}.rustiq", path_str)
-                                                } else {
-                                                    path_str.to_owned()
-                                                };
-                                                paint_app.save_as_rustiq(&path_with_ext)
-                                            }
+                                            paint_app.save_file(path.to_str().unwrap())
                                         } else {
-                                            // L'utilisateur a annulé la boîte de dialogue de sauvegarde
+                                            // User canceled the save dialog
                                             Ok(())
                                         };
                                         
@@ -1227,32 +1312,19 @@ impl eframe::App for MyApp {
                         
                         ui.separator();
                         ui.label(get_text("save_options", self.language));
-                        if ui.button(get_text("save_png", self.language)).clicked() {
+                        if ui.button(get_text("save_file", self.language)).clicked() {
                             if let Some(path) = FileDialog::new()
+                                .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                 .add_filter("PNG Image", &["png"])
-                                .set_directory("/")
-                                .save_file() {
-                                match paint_app.save_as_png(path.to_str().unwrap()) {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        self.error_message = Some(e);
-                                        self.show_error = true;
-                                    }
-                                }
-                            }
-                        }
-                        if ui.button(get_text("save_rustiq", self.language)).clicked() {
-                            if let Some(path) = FileDialog::new()
+                                .add_filter("JPEG Image", &["jpg", "jpeg"])
+                                .add_filter("BMP Image", &["bmp"])
+                                .add_filter("TIFF Image", &["tiff", "tif"])
+                                .add_filter("GIF Image", &["gif"])
+                                .add_filter("WebP Image", &["webp"])
                                 .add_filter("Rustique File", &["rustiq"])
                                 .set_directory("/")
                                 .save_file() {
-                                let path_str = path.to_str().unwrap();
-                                let path_with_ext = if Path::new(path_str).extension().is_none() {
-                                    format!("{}.rustiq", path_str)
-                                } else {
-                                    path_str.to_owned()
-                                };
-                                match paint_app.save_as_rustiq(&path_with_ext) {
+                                match paint_app.save_file(path.to_str().unwrap()) {
                                     Ok(_) => {},
                                     Err(e) => {
                                         self.error_message = Some(e);
@@ -1408,39 +1480,42 @@ impl eframe::App for MyApp {
 
                     // Handle line tool
                     if paint_app.current_tool == Tool::Line {
-                        // Dessiner un point initial lors du clic
-                        if response.clicked_by(egui::PointerButton::Primary) || response.clicked_by(egui::PointerButton::Secondary) {
+                        // First click sets the start point, second click sets the endpoint and draws the line
+                        if response.clicked() && !response.clicked_by(egui::PointerButton::Middle) {
                             let is_secondary = response.clicked_by(egui::PointerButton::Secondary);
                             if let Some(pos) = response.interact_pointer_pos() {
                                 let canvas_pos = to_canvas.transform_pos(pos);
+                                let x = canvas_pos.x as i32;
+                                let y = canvas_pos.y as i32;
                                 
-                                // Dessiner un point initial
-                                let start_x = canvas_pos.x as i32;
-                                let start_y = canvas_pos.y as i32;
-                                
-                                paint_app.line_start = Some((start_x, start_y));
-                                paint_app.line_end = Some((start_x, start_y));
-                                paint_app.is_drawing_line = true;
-                                
-                                // Dessiner un point initial à l'écran
-                                let point_pos = Pos2::new(
-                                    start_x as f32 * canvas_rect.width() / canvas_width + canvas_rect.min.x,
-                                    start_y as f32 * canvas_rect.height() / canvas_height + canvas_rect.min.y
-                                );
-                                
-                                let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
-                                let size = paint_app.brush_size as f32 * paint_app.zoom;
-                                painter.circle_filled(point_pos, size / 2.0, color);
+                                if paint_app.is_first_click_line {
+                                    // First click: set start point
+                                    paint_app.line_start = Some((x, y));
+                                    paint_app.line_end = Some((x, y));
+                                    paint_app.is_drawing_line = true;
+                                    paint_app.is_first_click_line = false;
+                                } else {
+                                    // Second click: draw the line
+                                    if let (Some(start), Some(_)) = (paint_app.line_start, paint_app.line_end) {
+                                        let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
+                                        paint_app.draw_line(start, (x, y), color);
+                                        paint_app.is_drawing_line = false;
+                                        paint_app.line_start = None;
+                                        paint_app.line_end = None;
+                                        paint_app.is_first_click_line = true;
+                                        paint_app.save_state();
+                                    }
+                                }
                             }
                         }
                         
-                        // Mettre à jour la ligne lors du déplacement de la souris
-                        if paint_app.is_drawing_line {
+                        // Update preview line when moving the mouse
+                        if paint_app.is_drawing_line && !paint_app.is_first_click_line {
                             if let Some(pos) = response.hover_pos() {
                                 let canvas_pos = to_canvas.transform_pos(pos);
                                 paint_app.line_end = Some((canvas_pos.x as i32, canvas_pos.y as i32));
                                 
-                                // Dessiner la ligne temporaire
+                                // Draw the preview line
                                 if let (Some(start), Some(end)) = (paint_app.line_start, paint_app.line_end) {
                                     let start_pos = Pos2::new(
                                         start.0 as f32 * canvas_rect.width() / canvas_width + canvas_rect.min.x,
@@ -1451,38 +1526,30 @@ impl eframe::App for MyApp {
                                         end.1 as f32 * canvas_rect.height() / canvas_height + canvas_rect.min.y
                                     );
                                     
-                                    // Le clic initial détermine la couleur
-                                    let is_secondary = response.dragged_by(egui::PointerButton::Secondary);
+                                    // Use the right mouse button state to determine color
+                                    let is_secondary = response.ctx.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
                                     let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
                                     let size = paint_app.brush_size as f32;
                                     
                                     painter.line_segment([start_pos, end_pos], Stroke::new(size * paint_app.zoom, color));
                                 }
                             }
-                            
-                            // Appliquer la ligne lors du relâchement du bouton
-                            if response.drag_released() {
-                                if let (Some(start), Some(end)) = (paint_app.line_start, paint_app.line_end) {
-                                    let is_secondary = response.drag_released_by(egui::PointerButton::Secondary);
-                                    let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
-                                    paint_app.draw_line(start, end, color);
-                                    paint_app.is_drawing_line = false;
-                                    paint_app.line_start = None;
-                                    paint_app.line_end = None;
-                                    paint_app.save_state();
-                                }
-                            }
-                            
-                            // Annuler la ligne si l'autre bouton est cliqué
-                            // Utilisation des méthodes sans paramètres selon l'API
-                            let primary_down = response.ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
-                            let secondary_down = response.ctx.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
-                            
-                            if (primary_down && secondary_down) || response.clicked_by(egui::PointerButton::Middle) {
-                                paint_app.is_drawing_line = false;
-                                paint_app.line_start = None;
-                                paint_app.line_end = None;
-                            }
+                        }
+                        
+                        // Cancel the line by pressing the middle mouse button
+                        if response.clicked_by(egui::PointerButton::Middle) {
+                            paint_app.is_drawing_line = false;
+                            paint_app.line_start = None;
+                            paint_app.line_end = None;
+                            paint_app.is_first_click_line = true;
+                        }
+                        
+                        // Also allow Escape key to cancel
+                        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            paint_app.is_drawing_line = false;
+                            paint_app.line_start = None;
+                            paint_app.line_end = None;
+                            paint_app.is_first_click_line = true;
                         }
                     } else {
                         // Handle other tools with left/right mouse buttons

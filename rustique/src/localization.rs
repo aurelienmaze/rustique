@@ -23,6 +23,7 @@ fn get_french_text(key: &str) -> String {
         ("create_new_canvas", "Créer un nouveau canevas"),
         ("open_png", "Ouvrir un fichier PNG"),
         ("open_rustiq", "Ouvrir un fichier Rustiq"),
+        ("open_file", "Ouvrir un fichier"),
         
         // Onglets et panneaux
         ("layers", "Calques"),
@@ -61,6 +62,7 @@ fn get_french_text(key: &str) -> String {
         ("redo", "Refaire"),
         ("save_png", "Sauvegarder PNG"),
         ("save_rustiq", "Sauvegarder Rustiq"),
+        ("save_file", "Sauvegarder Fichier"),
         
         // Messages d'info
         ("shortcuts_info", "Clic droit: couleur secondaire | Ctrl+Z: Annuler | Ctrl+Y: Refaire | Ctrl+S: Sauvegarder"),
@@ -79,9 +81,11 @@ fn get_french_text(key: &str) -> String {
         ("format_not_supported", "Format de fichier non pris en charge"),
         ("no_previous_path", "Aucun chemin de sauvegarde précédent"),
         ("unable_to_open_png", "Impossible d'ouvrir l'image PNG"),
+        ("unable_to_open_image", "Impossible d'ouvrir l'image"),
         ("error_reading_rustiq", "Erreur lors de la lecture du fichier Rustiq"),
         ("error_reading_file", "Erreur lors de la lecture du fichier"),
         ("error_saving_png", "Erreur lors de la sauvegarde PNG"),
+        ("error_saving_image", "Erreur lors de la sauvegarde de l'image"),
     ].iter().cloned().collect();
     
     translations.get(key).unwrap_or(&key).to_string()
@@ -97,6 +101,7 @@ fn get_english_text(key: &str) -> String {
         ("create_new_canvas", "Create New Canvas"),
         ("open_png", "Open PNG File"),
         ("open_rustiq", "Open Rustiq File"),
+        ("open_file", "Open File"),
         
         // Tabs and panels
         ("layers", "Layers"),
@@ -135,6 +140,7 @@ fn get_english_text(key: &str) -> String {
         ("redo", "Redo"),
         ("save_png", "Save PNG"),
         ("save_rustiq", "Save Rustiq"),
+        ("save_file", "Save File"),
         
         // Info messages
         ("shortcuts_info", "Right-click: secondary color | Ctrl+Z: Undo | Ctrl+Y: Redo | Ctrl+S: Save"),
@@ -153,9 +159,11 @@ fn get_english_text(key: &str) -> String {
         ("format_not_supported", "File format not supported"),
         ("no_previous_path", "No previous save path"),
         ("unable_to_open_png", "Unable to open PNG image"),
+        ("unable_to_open_image", "Unable to open image"),
         ("error_reading_rustiq", "Error reading Rustiq file"),
         ("error_reading_file", "Error reading file"),
         ("error_saving_png", "Error saving PNG"),
+        ("error_saving_image", "Error saving image"),
     ].iter().cloned().collect();
     
     translations.get(key).unwrap_or(&key).to_string()
