@@ -1,4 +1,5 @@
 mod main_menu;
+mod localization;
 
 use eframe::egui;
 use egui::{Color32, TextureHandle, TextureOptions, Rect, Pos2, Vec2, Stroke};
@@ -12,6 +13,7 @@ use std::io::Write;
 use serde::{Serialize, Deserialize};
 
 use main_menu::MainMenu;
+use localization::{Language, get_text};
 
 // Constants
 const MAX_UNDO_STEPS: usize = 20;
@@ -176,11 +178,12 @@ struct PaintApp {
     has_unsaved_changes: bool,
     last_save_path: Option<String>,
     save_dialog: SaveDialog,
+    language: Language,
 }
 
 impl PaintApp {
     // Initialize a new PaintApp
-    fn new(width: u32, height: u32) -> Self {
+    fn new(width: u32, height: u32, language: Language) -> Self {
         let initial_state = CanvasState::new(width as usize, height as usize);
         Self {
             current_state: initial_state,
@@ -206,11 +209,12 @@ impl PaintApp {
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
+            language,
         }
     }
 
     // Create a PaintApp from a .rustiq file
-    fn from_rustiq_file(file: RustiqueFile) -> Self {
+    fn from_rustiq_file(file: RustiqueFile, language: Language) -> Self {
         let mut canvas = CanvasState {
             width: file.width,
             height: file.height,
@@ -285,11 +289,12 @@ impl PaintApp {
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
+            language,
         }
     }
     
     // Create a PaintApp from a PNG file
-    fn from_png_file(path: &str) -> Option<Self> {
+    fn from_png_file(path: &str, language: Language) -> Option<Self> {
         match image::open(path) {
             Ok(img) => {
                 let width = img.width() as usize;
@@ -331,6 +336,7 @@ impl PaintApp {
                     has_unsaved_changes: false,
                     last_save_path: None,
                     save_dialog: SaveDialog::Hidden,
+                    language,
                 })
             },
             Err(_) => None
@@ -410,10 +416,10 @@ impl PaintApp {
             } else if path_clone.ends_with(".rustiq") {
                 self.save_as_rustiq(&path_clone)
             } else {
-                Err("Format de fichier non pris en charge".to_string())
+                Err(get_text("format_not_supported", self.language))
             }
         } else {
-            Err("Aucun chemin de sauvegarde précédent".to_string())
+            Err(get_text("no_previous_path", self.language))
         }
     }
 
@@ -536,7 +542,7 @@ impl PaintApp {
 
     // Save the current state for undo functionality
     fn save_state(&mut self) {
-        if !self.current_changes.is_empty() && self.last_action_time.elapsed() >= SAVE_STATE_DELAY {
+        if !self.current_changes.is_empty() {
             self.undo_stack.push(std::mem::take(&mut self.current_changes));
             self.current_changes = Vec::new();
             if self.undo_stack.len() > MAX_UNDO_STEPS {
@@ -544,6 +550,7 @@ impl PaintApp {
             }
             self.redo_stack.clear();
             self.is_drawing = false;
+            self.has_unsaved_changes = true;
         }
     }
 
@@ -778,7 +785,7 @@ impl PaintApp {
                 self.last_save_path = Some(path_with_ext);
                 Ok(())
             },
-            Err(e) => Err(format!("Erreur lors de la sauvegarde PNG: {}", e)),
+            Err(e) => Err(format!("{}: {}", get_text("error_saving_png", self.language), e)),
         }
     }
 
@@ -827,6 +834,11 @@ impl PaintApp {
             return_to_menu
         };
     }
+    
+    // Set language
+    fn set_language(&mut self, language: Language) {
+        self.language = language;
+    }
 }
 
 // Action à effectuer après fermeture de dialogues
@@ -834,6 +846,8 @@ enum PendingAction {
     None,
     ReturnToMenu,
     HandleLayerAction(LayerAction),
+    UndoAction,
+    RedoAction,
 }
 
 // Action à effectuer sur les calques
@@ -852,18 +866,20 @@ struct MyApp {
     rename_layer_index: Option<usize>,
     rename_layer_name: String,
     pending_action: PendingAction,
+    language: Language,
 }
 
 impl Default for MyApp {
     fn default() -> Self {
         Self {
-            state: AppState::MainMenu(MainMenu::default()),
+            state: AppState::MainMenu(MainMenu::new(Language::French)),
             error_message: None,
             show_error: false,
             new_layer_name: "New Layer".to_string(),
             rename_layer_index: None,
             rename_layer_name: String::new(),
             pending_action: PendingAction::None,
+            language: Language::French,
         }
     }
 }
@@ -876,11 +892,11 @@ impl eframe::App for MyApp {
         
         // Show error message dialog if needed
         if self.show_error {
-            egui::Window::new("Erreur")
+            egui::Window::new(get_text("error", self.language))
                 .collapsible(false)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    ui.label(self.error_message.as_deref().unwrap_or("Une erreur s'est produite"));
+                    ui.label(self.error_message.as_deref().unwrap_or(&get_text("an_error_occurred", self.language)));
                     if ui.button("OK").clicked() {
                         self.show_error = false;
                     }
@@ -889,7 +905,7 @@ impl eframe::App for MyApp {
         
         // Process rename layer dialog
         if let Some(layer_idx) = self.rename_layer_index {
-            egui::Window::new("Renommer le calque")
+            egui::Window::new(get_text("rename_layer", self.language))
                 .collapsible(false)
                 .resizable(false)
                 .show(ctx, |ui| {
@@ -901,7 +917,7 @@ impl eframe::App for MyApp {
                             }
                             self.rename_layer_index = None;
                         }
-                        if ui.button("Annuler").clicked() {
+                        if ui.button(get_text("cancel", self.language)).clicked() {
                             self.rename_layer_index = None;
                         }
                     });
@@ -911,7 +927,7 @@ impl eframe::App for MyApp {
         // Process pending actions
         match &self.pending_action {
             PendingAction::ReturnToMenu => {
-                self.state = AppState::MainMenu(MainMenu::default());
+                self.state = AppState::MainMenu(MainMenu::new(self.language));
                 self.pending_action = PendingAction::None;
             },
             PendingAction::HandleLayerAction(action) => {
@@ -933,55 +949,78 @@ impl eframe::App for MyApp {
                 }
                 self.pending_action = PendingAction::None;
             },
+            PendingAction::UndoAction => {
+                if let AppState::Canvas(paint_app) = &mut self.state {
+                    paint_app.undo();
+                }
+                self.pending_action = PendingAction::None;
+            },
+            PendingAction::RedoAction => {
+                if let AppState::Canvas(paint_app) = &mut self.state {
+                    paint_app.redo();
+                }
+                self.pending_action = PendingAction::None;
+            },
             PendingAction::None => {}
         }
         
         match &mut self.state {
             AppState::MainMenu(menu) => {
-                if let Some(action) = menu.show(ctx) {
-                    match action {
-                        main_menu::MenuAction::NewCanvas(width, height) => {
-                            self.state = AppState::Canvas(PaintApp::new(width, height));
-                        },
-                        main_menu::MenuAction::OpenPng => {
-                            if let Some(path) = FileDialog::new()
-                                .add_filter("PNG Image", &["png"])
-                                .set_directory("/")
-                                .pick_file() {
-                                match PaintApp::from_png_file(path.to_str().unwrap()) {
-                                    Some(app) => self.state = AppState::Canvas(app),
-                                    None => {
-                                        self.error_message = Some("Impossible d'ouvrir l'image PNG".to_string());
-                                        self.show_error = true;
-                                    }
-                                }
-                            }
-                        },
-                        main_menu::MenuAction::OpenRustiq => {
-                            if let Some(path) = FileDialog::new()
-                                .add_filter("Rustique File", &["rustiq"])
-                                .set_directory("/")
-                                .pick_file() {
-                                match fs::read_to_string(&path) {
-                                    Ok(content) => {
-                                        match serde_json::from_str::<RustiqueFile>(&content) {
-                                            Ok(file) => {
-                                                let mut app = PaintApp::from_rustiq_file(file);
-                                                app.last_save_path = Some(path.to_string_lossy().to_string());
-                                                self.state = AppState::Canvas(app);
-                                            },
-                                            Err(e) => {
-                                                self.error_message = Some(format!("Erreur lors de la lecture du fichier Rustiq: {}", e));
+                if let Some(result) = menu.show(ctx) {
+                    match result {
+                        main_menu::MenuResult::Action(action) => {
+                            match action {
+                                main_menu::MenuAction::NewCanvas(width, height) => {
+                                    self.state = AppState::Canvas(PaintApp::new(width, height, self.language));
+                                },
+                                main_menu::MenuAction::OpenPng => {
+                                    if let Some(path) = FileDialog::new()
+                                        .add_filter("PNG Image", &["png"])
+                                        .set_directory("/")
+                                        .pick_file() {
+                                        match PaintApp::from_png_file(path.to_str().unwrap(), self.language) {
+                                            Some(app) => self.state = AppState::Canvas(app),
+                                            None => {
+                                                self.error_message = Some(get_text("unable_to_open_png", self.language));
                                                 self.show_error = true;
                                             }
                                         }
-                                    },
-                                    Err(e) => {
-                                        self.error_message = Some(format!("Erreur lors de la lecture du fichier: {}", e));
-                                        self.show_error = true;
+                                    }
+                                },
+                                main_menu::MenuAction::OpenRustiq => {
+                                    if let Some(path) = FileDialog::new()
+                                        .add_filter("Rustique File", &["rustiq"])
+                                        .set_directory("/")
+                                        .pick_file() {
+                                        match fs::read_to_string(&path) {
+                                            Ok(content) => {
+                                                match serde_json::from_str::<RustiqueFile>(&content) {
+                                                    Ok(file) => {
+                                                        let mut app = PaintApp::from_rustiq_file(file, self.language);
+                                                        app.last_save_path = Some(path.to_string_lossy().to_string());
+                                                        self.state = AppState::Canvas(app);
+                                                    },
+                                                    Err(e) => {
+                                                        self.error_message = Some(format!("{}: {}", get_text("error_reading_rustiq", self.language), e));
+                                                        self.show_error = true;
+                                                    }
+                                                }
+                                            },
+                                            Err(e) => {
+                                                self.error_message = Some(format!("{}: {}", get_text("error_reading_file", self.language), e));
+                                                self.show_error = true;
+                                            }
+                                        }
                                     }
                                 }
                             }
+                        },
+                        main_menu::MenuResult::LanguageChanged(language) => {
+                            self.language = language;
+                            if let AppState::Canvas(paint_app) = &mut self.state {
+                                paint_app.set_language(language);
+                            }
+                            self.state = AppState::MainMenu(MainMenu::new(language));
                         }
                     }
                 }
@@ -990,11 +1029,11 @@ impl eframe::App for MyApp {
                 // Handle keyboard shortcuts
                 if ctrl {
                     if ctx.input(|i| i.key_pressed(egui::Key::Z)) && !shift {
-                        paint_app.undo();
+                        self.pending_action = PendingAction::UndoAction;
                     }
                     if ctx.input(|i| i.key_pressed(egui::Key::Y)) || 
                         shift && ctx.input(|i| i.key_pressed(egui::Key::Z)) {
-                        paint_app.redo();
+                        self.pending_action = PendingAction::RedoAction;
                     }
                     if ctx.input(|i| i.key_pressed(egui::Key::S)) {
                         if let Some(_) = &paint_app.last_save_path {
@@ -1048,13 +1087,13 @@ impl eframe::App for MyApp {
                     SaveDialog::Hidden => {},
                     SaveDialog::AskingSave { return_to_menu } => {
                         let return_to_menu_val = *return_to_menu;
-                        egui::Window::new("Sauvegarder les modifications?")
+                        egui::Window::new(get_text("save_changes", self.language))
                             .collapsible(false)
                             .resizable(false)
                             .show(ctx, |ui| {
-                                ui.label("Voulez-vous sauvegarder les modifications?");
+                                ui.label(get_text("want_to_save_changes", self.language));
                                 ui.horizontal(|ui| {
-                                    if ui.button("Oui").clicked() {
+                                    if ui.button(get_text("yes", self.language)).clicked() {
                                         // Ouvrir la boîte de dialogue de sauvegarde
                                         let result = if let Some(path) = FileDialog::new()
                                             .add_filter("Rustique File", &["rustiq"])
@@ -1090,13 +1129,13 @@ impl eframe::App for MyApp {
                                             }
                                         }
                                     }
-                                    if ui.button("Non").clicked() {
+                                    if ui.button(get_text("no", self.language)).clicked() {
                                         paint_app.save_dialog = SaveDialog::Hidden;
                                         if return_to_menu_val {
                                             self.pending_action = PendingAction::ReturnToMenu;
                                         }
                                     }
-                                    if ui.button("Annuler").clicked() {
+                                    if ui.button(get_text("cancel", self.language)).clicked() {
                                         paint_app.save_dialog = SaveDialog::Hidden;
                                     }
                                 });
@@ -1109,22 +1148,22 @@ impl eframe::App for MyApp {
                 egui::SidePanel::left("layers_panel").show(ctx, |ui| {
                     ui.set_min_width(180.0);
                     ui.vertical(|ui| {
-                        ui.heading("Calques");
+                        ui.heading(get_text("layers", self.language));
                         ui.separator();
                         
                         // Layer controls
                         ui.horizontal(|ui| {
                             if ui.button("+").clicked() {
-                                paint_app.add_layer(format!("Calque {}", paint_app.current_state.layers.len() + 1));
+                                paint_app.add_layer(format!("{} {}", get_text("layer", self.language), paint_app.current_state.layers.len() + 1));
                             }
                             if ui.button("-").clicked() && paint_app.current_state.layers.len() > 1 {
                                 paint_app.remove_layer(paint_app.current_state.active_layer_index);
                             }
                             ui.add_space(5.0);
-                            if ui.button("↑").clicked() {
+                            if ui.button(get_text("up", self.language)).clicked() {
                                 paint_app.move_layer_up(paint_app.current_state.active_layer_index);
                             }
-                            if ui.button("↓").clicked() {
+                            if ui.button(get_text("down", self.language)).clicked() {
                                 paint_app.move_layer_down(paint_app.current_state.active_layer_index);
                             }
                         });
@@ -1169,26 +1208,26 @@ impl eframe::App for MyApp {
 
                 egui::SidePanel::right("tools_panel").show(ctx, |ui| {
                     ui.vertical(|ui| {
-                        ui.heading("Outils");
-                        if ui.button("Pinceau").clicked() {
+                        ui.heading(get_text("tools", self.language));
+                        if ui.button(get_text("brush", self.language)).clicked() {
                             paint_app.current_tool = Tool::Brush;
                         }
-                        if ui.button("Gomme").clicked() {
+                        if ui.button(get_text("eraser", self.language)).clicked() {
                             paint_app.current_tool = Tool::Eraser;
                         }
-                        if ui.button("Pot de Peinture").clicked() {
+                        if ui.button(get_text("paint_bucket", self.language)).clicked() {
                             paint_app.current_tool = Tool::PaintBucket;
                         }
-                        if ui.button("Pipette").clicked() {
+                        if ui.button(get_text("color_picker", self.language)).clicked() {
                             paint_app.current_tool = Tool::ColorPicker;
                         }
-                        if ui.button("Ligne").clicked() {
+                        if ui.button(get_text("line", self.language)).clicked() {
                             paint_app.current_tool = Tool::Line;
                         }
                         
                         ui.separator();
-                        ui.label("Options de sauvegarde");
-                        if ui.button("Sauvegarder PNG").clicked() {
+                        ui.label(get_text("save_options", self.language));
+                        if ui.button(get_text("save_png", self.language)).clicked() {
                             if let Some(path) = FileDialog::new()
                                 .add_filter("PNG Image", &["png"])
                                 .set_directory("/")
@@ -1202,7 +1241,7 @@ impl eframe::App for MyApp {
                                 }
                             }
                         }
-                        if ui.button("Sauvegarder Rustiq").clicked() {
+                        if ui.button(get_text("save_rustiq", self.language)).clicked() {
                             if let Some(path) = FileDialog::new()
                                 .add_filter("Rustique File", &["rustiq"])
                                 .set_directory("/")
@@ -1226,24 +1265,24 @@ impl eframe::App for MyApp {
                         ui.separator();
                         
                         ui.add_space(10.0);
-                        ui.label("Taille du pinceau:");
+                        ui.label(get_text("brush_size", self.language));
                         ui.add(egui::DragValue::new(&mut paint_app.brush_size).speed(0.1).clamp_range(1..=500));
                         
                         ui.add_space(10.0);
-                        ui.label("Taille de la gomme:");
+                        ui.label(get_text("eraser_size", self.language));
                         ui.add(egui::DragValue::new(&mut paint_app.eraser_size).speed(0.1).clamp_range(1..=500));
                         
                         ui.add_space(10.0);
-                        ui.label("Couleurs:");
+                        ui.label(get_text("colors", self.language));
                         ui.horizontal(|ui| {
-                            ui.label("Primaire:");
+                            ui.label(get_text("primary", self.language));
                             ui.color_edit_button_srgba(&mut paint_app.primary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.primary_color);
                             }
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Secondaire:");
+                            ui.label(get_text("secondary", self.language));
                             ui.color_edit_button_srgba(&mut paint_app.secondary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.secondary_color);
@@ -1251,14 +1290,14 @@ impl eframe::App for MyApp {
                         });
                         
                         ui.add_space(10.0);
-                        ui.label("Zoom:");
+                        ui.label(get_text("zoom", self.language));
                         ui.add(egui::Slider::new(&mut paint_app.zoom, 0.1..=10.0).logarithmic(true));
                         
                         // Saved colors palette
                         if !paint_app.saved_colors.is_empty() {
                             ui.add_space(10.0);
                             ui.separator();
-                            ui.label("Couleurs sauvegardées:");
+                            ui.label(get_text("saved_colors", self.language));
                             
                             let available_width = ui.available_width();
                             let color_size = 24.0;
@@ -1284,7 +1323,11 @@ impl eframe::App for MyApp {
                                                 break;
                                             }
                                             
-                                            btn.on_hover_text("Clic gauche: définir comme couleur primaire\nClic droit: définir comme couleur secondaire\nClic molette: supprimer");
+                                            btn.on_hover_text(format!("{}\n{}\n{}",
+                                                get_text("left_click_primary", self.language),
+                                                get_text("right_click_secondary", self.language),
+                                                get_text("middle_click_delete", self.language)
+                                            ));
                                         }
                                     }
                                 });
@@ -1294,26 +1337,38 @@ impl eframe::App for MyApp {
                 });
 
                 // Top panel for buttons
-                let return_to_menu_clicked = egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-                    let mut clicked = false;
+                let (undo_clicked, redo_clicked, return_to_menu_clicked) = egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+                    let mut return_clicked = false;
+                    let mut undo_clicked = false;
+                    let mut redo_clicked = false;
+                    
                     ui.horizontal(|ui| {
                         // Return to menu button
-                        if ui.button("Retour au menu").clicked() {
-                            clicked = true;
+                        if ui.button(get_text("return_to_menu", self.language)).clicked() {
+                            return_clicked = true;
                         }
                         
-                        if ui.button("Undo").clicked() {
-                            paint_app.undo();
+                        if ui.button(get_text("undo", self.language)).clicked() {
+                            undo_clicked = true;
                         }
-                        if ui.button("Redo").clicked() {
-                            paint_app.redo();
+                        if ui.button(get_text("redo", self.language)).clicked() {
+                            redo_clicked = true;
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label("Clic droit: couleur secondaire | Ctrl+Z: Annuler | Ctrl+Y: Refaire | Ctrl+S: Sauvegarder");
+                            ui.label(get_text("shortcuts_info", self.language));
                         });
                     });
-                    clicked
+                    (undo_clicked, redo_clicked, return_clicked)
                 }).inner;
+                
+                // Handle button actions outside of the panel to avoid borrow issues
+                if undo_clicked {
+                    self.pending_action = PendingAction::UndoAction;
+                }
+                
+                if redo_clicked {
+                    self.pending_action = PendingAction::RedoAction;
+                }
                 
                 // Handle the return to menu request after all panels to avoid borrowing issues
                 if return_to_menu_clicked {
@@ -1353,21 +1408,39 @@ impl eframe::App for MyApp {
 
                     // Handle line tool
                     if paint_app.current_tool == Tool::Line {
+                        // Dessiner un point initial lors du clic
                         if response.clicked_by(egui::PointerButton::Primary) || response.clicked_by(egui::PointerButton::Secondary) {
-                            let _is_secondary = response.clicked_by(egui::PointerButton::Secondary);
+                            let is_secondary = response.clicked_by(egui::PointerButton::Secondary);
                             if let Some(pos) = response.interact_pointer_pos() {
                                 let canvas_pos = to_canvas.transform_pos(pos);
-                                paint_app.line_start = Some((canvas_pos.x as i32, canvas_pos.y as i32));
+                                
+                                // Dessiner un point initial
+                                let start_x = canvas_pos.x as i32;
+                                let start_y = canvas_pos.y as i32;
+                                
+                                paint_app.line_start = Some((start_x, start_y));
+                                paint_app.line_end = Some((start_x, start_y));
                                 paint_app.is_drawing_line = true;
+                                
+                                // Dessiner un point initial à l'écran
+                                let point_pos = Pos2::new(
+                                    start_x as f32 * canvas_rect.width() / canvas_width + canvas_rect.min.x,
+                                    start_y as f32 * canvas_rect.height() / canvas_height + canvas_rect.min.y
+                                );
+                                
+                                let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
+                                let size = paint_app.brush_size as f32 * paint_app.zoom;
+                                painter.circle_filled(point_pos, size / 2.0, color);
                             }
                         }
                         
+                        // Mettre à jour la ligne lors du déplacement de la souris
                         if paint_app.is_drawing_line {
                             if let Some(pos) = response.hover_pos() {
                                 let canvas_pos = to_canvas.transform_pos(pos);
                                 paint_app.line_end = Some((canvas_pos.x as i32, canvas_pos.y as i32));
                                 
-                                // Draw a temporary line preview
+                                // Dessiner la ligne temporaire
                                 if let (Some(start), Some(end)) = (paint_app.line_start, paint_app.line_end) {
                                     let start_pos = Pos2::new(
                                         start.0 as f32 * canvas_rect.width() / canvas_width + canvas_rect.min.x,
@@ -1378,24 +1451,37 @@ impl eframe::App for MyApp {
                                         end.1 as f32 * canvas_rect.height() / canvas_height + canvas_rect.min.y
                                     );
                                     
-                                    // Draw preview line (corrigé)
+                                    // Le clic initial détermine la couleur
                                     let is_secondary = response.dragged_by(egui::PointerButton::Secondary);
                                     let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
-                                    let thickness = (paint_app.brush_size as f32 * paint_app.zoom).max(1.0);
-                                    painter.line_segment([start_pos, end_pos], Stroke::new(thickness, color));
+                                    let size = paint_app.brush_size as f32;
+                                    
+                                    painter.line_segment([start_pos, end_pos], Stroke::new(size * paint_app.zoom, color));
                                 }
                             }
                             
+                            // Appliquer la ligne lors du relâchement du bouton
                             if response.drag_released() {
                                 if let (Some(start), Some(end)) = (paint_app.line_start, paint_app.line_end) {
                                     let is_secondary = response.drag_released_by(egui::PointerButton::Secondary);
                                     let color = if is_secondary { paint_app.secondary_color } else { paint_app.primary_color };
                                     paint_app.draw_line(start, end, color);
+                                    paint_app.is_drawing_line = false;
+                                    paint_app.line_start = None;
+                                    paint_app.line_end = None;
+                                    paint_app.save_state();
                                 }
+                            }
+                            
+                            // Annuler la ligne si l'autre bouton est cliqué
+                            // Utilisation des méthodes sans paramètres selon l'API
+                            let primary_down = response.ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
+                            let secondary_down = response.ctx.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
+                            
+                            if (primary_down && secondary_down) || response.clicked_by(egui::PointerButton::Middle) {
                                 paint_app.is_drawing_line = false;
                                 paint_app.line_start = None;
                                 paint_app.line_end = None;
-                                paint_app.save_state();
                             }
                         }
                     } else {
