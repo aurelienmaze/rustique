@@ -1,13 +1,6 @@
 use eframe::egui;
 use egui::{Color32, Vec2};
 
-// Enum to represent actions from the main menu
-pub enum MenuAction {
-    NewCanvas(u32, u32),
-    OpenPng,
-    OpenRustiq
-}
-
 pub struct MainMenu {
     width: u32,
     height: u32,
@@ -27,8 +20,8 @@ impl Default for MainMenu {
 }
 
 impl MainMenu {
-    pub fn show(&mut self, ctx: &egui::Context) -> Option<MenuAction> {
-        let mut action = None;
+    pub fn show(&mut self, ctx: &egui::Context) -> Option<(u32, u32)> {
+        let mut dimensions = None;
 
         if self.logo.is_none() {
             self.logo = load_image_from_path(ctx, "rustique.png");
@@ -73,25 +66,15 @@ impl MainMenu {
 
                         ui.add_space(20.0);
 
-                        if ui.button("Create New Canvas").clicked() {
-                            action = Some(MenuAction::NewCanvas(self.width, self.height));
-                        }
-
-                        ui.add_space(10.0);
-                        if ui.button("Open PNG File").clicked() {
-                            action = Some(MenuAction::OpenPng);
-                        }
-
-                        ui.add_space(10.0);
-                        if ui.button("Open Rustiq File").clicked() {
-                            action = Some(MenuAction::OpenRustiq);
+                        if ui.button("Create Canvas").clicked() {
+                            dimensions = Some((self.width, self.height));
                         }
                     });
                 });
             });
         });
 
-        action
+        dimensions
     }
 }
 

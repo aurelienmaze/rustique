@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rustique - Application de peinture numérique innovante</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Loader -->
+    <div class="loader">
+        <div class="logo-container">
+            <img src="src/rustique_logo.png" alt="Rustique Logo" class="logo-loader">
+            <div class="progress-bar">
+                <div class="progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container nav-container">
+            <div class="logo">
+                <img src="src/rustique_logo.png" alt="Rustique Logo">
+                <span class="logo-text">Rustique</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#accueil" class="nav-link" data-scroll>Accueil</a></li>
+                <li><a href="#projet" class="nav-link" data-scroll>Projet</a></li>
+                <li><a href="#fonctionnalites" class="nav-link" data-scroll>Fonctionnalités</a></li>
+                <li><a href="#equipe" class="nav-link" data-scroll>Équipe</a></li>
+                <li><a href="#telechargement" class="nav-link" data-scroll>Téléchargement</a></li>
+                <li>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="theme-toggle" checked>
+                        <span class="slider">
+                            <i class="fas fa-sun"></i>
+                            <i class="fas fa-moon"></i>
+                        </span>
+                    </label>
+                </li>
+            </ul>
+            <div class="mobile-menu-btn">
+                <div class="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="accueil" class="hero">
+        <div class="particles-container" id="particles-js"></div>
+        <div class="container hero-content">
+            <h1 class="hero-title" data-aos="fade-up" data-aos-delay="200">
+                <span class="highlight">Créez</span> des œuvres d'art numériques avec <span class="highlight">Rustique</span>
+            </h1>
+            <p class="hero-subtitle" data-aos="fade-up" data-aos-delay="400">Une application de peinture numérique moderne, performante et intuitive développée en Rust</p>
+            <div class="hero-btns" data-aos="fade-up" data-aos-delay="600">
+                <a href="#telechargement" class="btn btn-primary" data-scroll>
+                    <span>Télécharger</span>
+                    <i class="fas fa-download"></i>
+                </a>
+                <a href="#projet" class="btn btn-outline" data-scroll>
+                    <span>En savoir plus</span>
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+            <div class="hero-image" data-aos="zoom-in" data-aos-delay="800">
+                <img src="src/interface.png" alt="Rustique Interface" class="floating">
+            </div>
+        </div>
+        <a href="#projet" class="scroll-down" data-scroll>
+            <div class="mouse">
+                <div class="wheel"></div>
+            </div>
+            <div class="arrow">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </a>
+    </section>
+
+    <!-- About Section -->
+    <section id="projet" class="section about">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h6 class="section-pre-title">Notre vision</h6>
+                <h2 class="section-title">À propos du projet</h2>
+                <div class="section-line"></div>
+            </div>
+            <div class="about-grid">
+                <div class="about-img" data-aos="fade-right" data-aos-delay="200">
+                    <div class="img-container">
+                        <img src="src/interface.png" alt="Rustique Interface">
+                        <div class="overlay"></div>
+                    </div>
+                    <div class="float-card">
+                        <div class="card-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="card-text">
+                            <h4>Développé en Rust</h4>
+                            <p>Performance et sécurité</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-content" data-aos="fade-left" data-aos-delay="400">
+                    <h2>Peinture numérique : <span class="highlight">Rustique</span></h2>
+                    <p class="about-text">Développé dans le cadre d'un projet universitaire (S4), Rustique est une application de peinture numérique conçue en Rust. Notre objectif est de créer un outil de dessin fonctionnel tout en explorant les concepts fondamentaux de la programmation en Rust et du développement d'interfaces graphiques.</p>
+                    <p class="about-text">L'application permet aux utilisateurs de créer des œuvres d'art numériques en utilisant divers outils de dessin et de peinture. Rustique fournit une interface intuitive pour la création artistique numérique tout en servant de plateforme d'apprentissage pour notre équipe.</p>
+                    <div class="about-features">
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-paint-brush"></i>
+                            </div>
+                            <div class="feature-text">
+                                <h4>Outils intuitifs</h4>
+                            </div>
+                        </div>
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-layer-group"></i>
+                            </div>
+                            <div class="feature-text">
+                                <h4>Calques avancés</h4>
+                            </div>
+                        </div>
+                        <div class="feature">
+                            <div class="feature-icon">
+                                <i class="fas fa-tachometer-alt"></i>
+                            </div>
+                            <div class="feature-text">
+                                <h4>Haute performance</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="#fonctionnalites" class="btn btn-primary" data-scroll>
+                        <span>Découvrir les fonctionnalités</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline Section -->
+    <section class="section timeline-section">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h6 class="section-pre-title">Notre progression</h6>
+                <h2 class="section-title">Chronologie du projet</h2>
+                <div class="section-line"></div>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item" data-aos="fade-right">
+                    <div class="timeline-content">
+                        <span class="timeline-date">Janvier 2025</span>
+                        <h3 class="timeline-title">Lancement du projet</h3>
+                        <p>Définition des objectifs et répartition des responsabilités entre les membres de l'équipe.</p>
+                        <div class="timeline-icon">
+                            <i class="fas fa-rocket"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item" data-aos="fade-left">
+                    <div class="timeline-content">
+                        <span class="timeline-date">7 Février 2025</span>
+                        <h3 class="timeline-title">Développement initial</h3>
+                        <p>Début du développement des fonctionnalités de base : outils de dessin, calques, interface utilisateur et sauvegarde.</p>
+                        <div class="timeline-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item" data-aos="fade-right">
+                    <div class="timeline-content">
+                        <span class="timeline-date">14 Février 2025</span>
+                        <h3 class="timeline-title">Développement avancé</h3>
+                        <p>Poursuite du développement et intégration des différentes fonctionnalités.</p>
+                        <div class="timeline-icon">
+                            <i class="fas fa-cogs"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item" data-aos="fade-left">
+                    <div class="timeline-content">
+                        <span class="timeline-date">21 Février 2025</span>
+                        <h3 class="timeline-title">Phase de test</h3>
+                        <p>Tests intensifs et corrections des bugs avant la première présentation officielle.</p>
+                        <div class="timeline-icon">
+                            <i class="fas fa-vial"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item" data-aos="fade-right">
+                    <div class="timeline-content">
+                        <span class="timeline-date">24 Février 2025</span>
+                        <h3 class="timeline-title">Première soutenance</h3>
+                        <p>Présentation de la première version fonctionnelle du projet avec les fonctionnalités essentielles.</p>
+                        <div class="timeline-icon">
+                            <i class="fas fa-award"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="fonctionnalites" class="section features">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h6 class="section-pre-title">Nos outils</h6>
+                <h2 class="section-title">Fonctionnalités principales</h2>
+                <div class="section-line"></div>
+            </div>
+            
+            <div class="features-tabs">
+                <div class="tabs-nav" data-aos="fade-up" data-aos-delay="200">
+                    <button class="tab-btn active" data-tab="tab1">
+                        <i class="fas fa-paint-brush"></i>
+                        <span>Outils de dessin</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab2">
+                        <i class="fas fa-layer-group"></i>
+                        <span>Système de calques</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab3">
+                        <i class="fas fa-palette"></i>
+                        <span>Palette de couleurs</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab4">
+                        <i class="fas fa-save"></i>
+                        <span>Gestion de fichiers</span>
+                    </button>
+                </div>
+                
+                <div class="tabs-content" data-aos="fade-up" data-aos-delay="400">
+                    <div id="tab1" class="tab-pane active">
+                        <div class="tab-content-inner">
+                            <div class="tab-image">
+                                <img src="src/feature_tools.png" alt="Outils de dessin" class="floating">
+                            </div>
+                            <div class="tab-info">
+                                <h3>Outils de dessin avancés</h3>
+                                <p>Implémentation de pinceaux, crayons, gommes et formes de base. Contrôlez la taille et l'opacité de vos outils pour des résultats précis.</p>
+                                <ul class="feature-list">
+                                    <li><i class="fas fa-check"></i> Différents types de pinceaux personnalisables</li>
+                                    <li><i class="fas fa-check"></i> Sélection de formes géométriques</li>
+                                    <li><i class="fas fa-check"></i> Outils de sélection avancés</li>
+                                    <li><i class="fas fa-check"></i> Réglage précis de la taille et de l'opacité</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="tab2" class="tab-pane">
+                        <div class="tab-content-inner">
+                            <div class="tab-image">
+                                <img src="src/feature_layers.png" alt="Système de calques" class="floating">
+                            </div>
+                            <div class="tab-info">
+                                <h3>Système de calques flexible</h3>
+                                <p>Création et gestion de calques pour une édition plus flexible. Fusionnez, dupliquez et organisez vos calques selon vos besoins.</p>
+                                <ul class="feature-list">
+                                    <li><i class="fas fa-check"></i> Création et suppression facile des calques</li>
+                                    <li><i class="fas fa-check"></i> Modes de fusion avancés</li>
+                                    <li><i class="fas fa-check"></i> Organisation et groupement des calques</li>
+                                    <li><i class="fas fa-check"></i> Réglage d'opacité par calque</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="tab3" class="tab-pane">
+                        <div class="tab-content-inner">
+                            <div class="tab-image">
+                                <img src="src/feature_colors.png" alt="Palette de couleurs" class="floating">
+                            </div>
+                            <div class="tab-info">
+                                <h3>Palette de couleurs intuitive</h3>
+                                <p>Sélection et gestion des couleurs. Créez, enregistrez et réutilisez vos couleurs préférées pour une expérience créative fluide.</p>
+                                <ul class="feature-list">
+                                    <li><i class="fas fa-check"></i> Sélecteur de couleurs avancé</li>
+                                    <li><i class="fas fa-check"></i> Collections de couleurs personnalisables</li>
+                                    <li><i class="fas fa-check"></i> Importation de palettes existantes</li>
+                                    <li><i class="fas fa-check"></i> Harmonies de couleurs automatiques</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="tab4" class="tab-pane">
+                        <div class="tab-content-inner">
+                            <div class="tab-image">
+                                <img src="src/feature_files.png" alt="Gestion de fichiers" class="floating">
+                            </div>
+                            <div class="tab-info">
+                                <h3>Gestion de fichiers efficace</h3>
+                                <p>Sauvegarde et chargement d'images dans des formats courants (PNG, JPEG). Format de projet personnalisé pour conserver tous vos calques.</p>
+                                <ul class="feature-list">
+                                    <li><i class="fas fa-check"></i> Exportation multi-formats</li>
+                                    <li><i class="fas fa-check"></i> Format propriétaire .rustiq pour préserver les calques</li>
+                                    <li><i class="fas fa-check"></i> Sauvegarde automatique périodique</li>
+                                    <li><i class="fas fa-check"></i> Gestion de l'historique des modifications</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="features-grid" data-aos="fade-up" data-aos-delay="200">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3 class="feature-title">Filtres personnalisés</h3>
+                    <p class="feature-desc">Application de filtres et d'effets inspirés du thème de la rouille pour donner un style unique à vos créations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <h3 class="feature-title">Performance</h3>
+                    <p class="feature-desc">Développé en Rust pour une efficacité et une sécurité optimales, garantissant une expérience fluide même sur des projets complexes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Counter Section -->
+    <section class="section counter-section">
+        <div class="container">
+            <div class="counters-grid">
+                <div class="counter-item" data-aos="fade-up" data-aos-delay="100">
+                    <div class="counter-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <div class="counter">
+                        <span class="counter-number" data-target="15000">0</span>
+                        <span class="counter-plus">+</span>
+                    </div>
+                    <h4 class="counter-title">Lignes de code</h4>
+                </div>
+                <div class="counter-item" data-aos="fade-up" data-aos-delay="200">
+                    <div class="counter-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="counter">
+                        <span class="counter-number" data-target="4">0</span>
+                    </div>
+                    <h4 class="counter-title">Développeurs</h4>
+                </div>
+                <div class="counter-item" data-aos="fade-up" data-aos-delay="300">
+                    <div class="counter-icon">
+                        <i class="fas fa-paint-brush"></i>
+                    </div>
+                    <div class="counter">
+                        <span class="counter-number" data-target="6">0</span>
+                    </div>
+                    <h4 class="counter-title">Outils de dessin</h4>
+                </div>
+                <div class="counter-item" data-aos="fade-up" data-aos-delay="400">
+                    <div class="counter-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="counter">
+                        <span class="counter-number" data-target="250">0</span>
+                        <span class="counter-plus">+</span>
+                    </div>
+                    <h4 class="counter-title">Heures de travail</h4>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section id="equipe" class="section team">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h6 class="section-pre-title">Nos experts</h6>
+                <h2 class="section-title">Notre équipe</h2>
+                <div class="section-line"></div>
+            </div>
+            <div class="team-grid">
+                <div class="team-member" data-aos="fade-up" data-aos-delay="100">
+                    <div class="member-img-container">
+                        <img src="src/vincent_nedelian.jpg" alt="Vincent" class="member-img">
+                        <div class="member-social">
+                            <a href="#" class="social-link"><i class="fab fa-github"></i></a>
+                            <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                            <a href="#" class="social-link"><i class="fas fa-envelope"></i></a>
+                        </div>
+                    </div>
+                    <div class="member-info">
+                        <h3 class="member-name">Vincent</h3>
+                        <p class="member-role">Responsable des outils de dessin</p>
+                        <p class="member-desc">Développement des outils de dessin et de la palette de couleurs. Utilisation de la bibliothèque piet/wgpu pour le rendu graphique.</p>
+                    </div>
+                </div>
+                <div class="team-member" data-aos="fade-up" data-aos-delay="200">
+                    <div class="member-img-container">
+                        <img src="src/leonardo_monroc.jpg" alt="Leonardo" class="member-img">
+                        <div class="member-social">
+                            <a href="#" class="social-link"><i class="fab fa-github"></i></a>
+                            <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                            <a href="#" class="social-link"><i class="fas fa-envelope"></i></a>
+                        </div>
+                    </div>
+                    <div class="member-info">
+                        <h3 class="member-name">Leonardo</h3>
+                        <p class="member-role">Responsable du système de calques</p>
+                        <p class="member-desc">Implémentation du système de calques avec gestion de la création, suppression, organisation et visibilité. Utilisation de la bibliothèque eframe.</p>
+                    </div>
+                </div>
+                <div class="team-member" data-aos="fade-up" data-aos-delay="300">
+                    <div class="member-img-container">
+                        <img src="src/nabil_borous.jpg" alt="Nabil" class="member-img">
+                        <div class="member-social">
+                            <a href="#" class="social-link"><i class="fab fa-github"></i></a>
+                            <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                            <a href="#" class="social-link"><i class="fas fa-envelope"></i></a>
+                        </div>
+                    </div>
+                    <div class="member-info">
+                        <h3 class="member-name">Nabil</h3>
+                        <p class="member-role">Responsable de la gestion des fichiers</p>
+                        <p class="member-desc">Gestion des fichiers et des formats d'image avec sauvegarde et chargement dans des formats courants. Utilisation de la bibliothèque image.</p>
+                    </div>
+                </div>
+                <div class="team-member" data-aos="fade-up" data-aos-delay="400">
+                    <div class="member-img-container">
+                        <img src="src/aurelien_maze.jpg" alt="Aurélien" class="member-img">
+                        <div class="member-social">
+                            <a href="#" class="social-link"><i class="fab fa-github"></i></a>
+                            <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                            <a href="#" class="social-link"><i class="fas fa-envelope"></i></a>
+                        </div>
+                    </div>
+                    <div class="member-info">
+                        <h3 class="member-name">Aurélien</h3>
+                        <p class="member-role">Responsable de l'interface utilisateur</p>
+                        <p class="member-desc">Conception de l'interface utilisateur et de l'expérience utilisateur pour garantir une interaction fluide et intuitive. Utilisation de la bibliothèque egui.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="telechargement" class="section download">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h6 class="section-pre-title">Obtenez Rustique</h6>
+                <h2 class="section-title download-title">Téléchargement</h2>
+                <div class="section-line"></div>
+            </div>
+            <p class="download-desc" data-aos="fade-up" data-aos-delay="200">Téléchargez Rustique pour commencer à créer dès maintenant. Disponible pour Windows, macOS et Linux.</p>
+            
+            <div class="download-options" data-aos="fade-up" data-aos-delay="400">
+                <a href="#" class="download-btn">
+                    <i class="fab fa-windows"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">Windows</span>
+                    </div>
+                    <div class="download-hover-text">
+                        <span>Windows 10/11</span>
+                        <span>64-bit</span>
+                    </div>
+                </a>
+                <a href="#" class="download-btn">
+                    <i class="fab fa-apple"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">macOS</span>
+                    </div>
+                    <div class="download-hover-text">
+                        <span>macOS 11+</span>
+                        <span>Intel/Apple Silicon</span>
+                    </div>
+                </a>
+                <a href="#" class="download-btn">
+                    <i class="fab fa-linux"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">Linux</span>
+                    </div>
+                    <div class="download-hover-text">
+                        <span>Ubuntu/Debian/Fedora</span>
+                        <span>AppImage disponible</span>
+                    </div>
+                </a>
+            </div>
+            
+            <div class="report-download" data-aos="fade-up" data-aos-delay="600">
+                <a href="src/Rustique.pdf" class="btn btn-outline" target="_blank">
+                    <i class="fas fa-file-pdf"></i>
+                    <span>Télécharger le rapport</span>
+                </a>
+            </div>
+            
+            <div class="download-info" data-aos="fade-up" data-aos-delay="800">
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Mises à jour régulières</h4>
+                        <p>Notre équipe améliore constamment Rustique avec de nouvelles fonctionnalités.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Sécurité optimale</h4>
+                        <p>Développé en Rust pour une sécurité et une stabilité maximales.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-code-branch"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Open Source</h4>
+                        <p>Code source disponible sur GitHub pour encourager la collaboration.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-info">
+                    <div class="footer-logo">
+                        <img src="src/rustique_logo.png" alt="Rustique Logo">
+                    </div>
+                    <p class="footer-desc">Une application de peinture numérique moderne, performante et intuitive développée en Rust.</p>
+                    <div class="social-links">
+                        <a href="#" class="social-link"><i class="fab fa-github"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h3 class="footer-title">Liens rapides</h3>
+                    <ul>
+                        <li><a href="#accueil">Accueil</a></li>
+                        <li><a href="#projet">Projet</a></li>
+                        <li><a href="#fonctionnalites">Fonctionnalités</a></li>
+                        <li><a href="#equipe">Équipe</a></li>
+                        <li><a href="#telechargement">Téléchargement</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h3 class="footer-title">Contact</h3>
+                    <ul class="contact-info">
+                        <!--<li>
+                            <i class="fas fa-envelope"></i>
+                            <span>contact@rustique-app.fr</span>
+                        </li>-->
+                        <li>
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>EPITA VilleJuif, France</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-code-branch"></i>
+                            <span>github.com/TinpotGIT/rustique</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="copyright">
+                <p>&copy; 2025 Rustique. Tous droits réservés.</p>
+                <div class="theme-credit">
+                    <span>Développé par l'équipe Rustique</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to Top Button -->
+    <a href="#accueil" class="back-to-top" data-scroll>
+        <i class="fas fa-arrow-up"></i>
+    </a>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

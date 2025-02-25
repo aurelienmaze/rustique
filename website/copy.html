@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rustique - Application de peinture numérique</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Variables */
+        :root {
+            --primary: #CF6A37;
+            --secondary: #292321;
+            --light: #f5f5f5;
+            --dark: #222;
+            --accent: #7D5A50;
+            --gray: #555;
+            --transition: all 0.3s ease;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background-color: var(--light);
+            overflow-x: hidden;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        img {
+            max-width: 100%;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .section {
+            padding: 80px 0;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--secondary);
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 80px;
+            height: 4px;
+            background: var(--primary);
+            margin: 15px auto;
+            border-radius: 2px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: var(--primary);
+            color: white;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: var(--transition);
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background-color: var(--accent);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* Header */
+        header {
+            background-color: white;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            width: 100%;
+            z-index: 1000;
+            transition: var(--transition);
+        }
+
+        header.scrolled {
+            padding: 10px 0;
+        }
+
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo img {
+            height: 50px;
+            margin-right: 10px;
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-link {
+            margin-left: 30px;
+            font-weight: 500;
+            color: var(--secondary);
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -5px;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: var(--transition);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--secondary);
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('/api/placeholder/1920/1080') center/cover no-repeat;
+            color: white;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding-top: 80px;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+
+        .hero-btns {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .scroll-down {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            animation: bounce 2s infinite;
+            color: white;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateY(0) translateX(-50%);}
+            40% {transform: translateY(-30px) translateX(-50%);}
+            60% {transform: translateY(-15px) translateX(-50%);}
+        }
+
+        /* About Section */
+        .about-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            align-items: center;
+        }
+
+        .about-img {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .about-content h2 {
+            margin-bottom: 20px;
+            color: var(--secondary);
+            font-size: 2.2rem;
+        }
+
+        .about-text {
+            margin-bottom: 30px;
+            color: var(--gray);
+        }
+
+        /* Features Section */
+        .features {
+            background-color: #f9f9f9;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .feature-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            transition: var(--transition);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+
+        .feature-title {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: var(--secondary);
+        }
+
+        .feature-desc {
+            color: var(--gray);
+        }
+
+        /* Team Section */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .team-member {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+        }
+
+        .team-member:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .member-img {
+            height: 250px;
+            width: 100%;
+            object-fit: cover;
+            object-position: top center;
+        }
+
+        .member-info {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .member-name {
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+            color: var(--secondary);
+        }
+
+        .member-role {
+            color: var(--primary);
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .member-desc {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        /* Download Section */
+        .download {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            text-align: center;
+        }
+
+        .download-title {
+            color: white;
+        }
+
+        .download-title::after {
+            background: white;
+        }
+
+        .download-desc {
+            max-width: 700px;
+            margin: 0 auto 40px;
+            font-size: 1.1rem;
+        }
+
+        .download-options {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            background-color: white;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            padding: 15px 30px;
+            border-radius: 5px;
+            transition: var(--transition);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            background-color: var(--light);
+        }
+
+        .download-btn i {
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+
+        .download-text {
+            text-align: left;
+        }
+
+        .download-small {
+            font-size: 0.8rem;
+            display: block;
+        }
+
+        .download-large {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--secondary);
+            color: white;
+            padding: 60px 0 20px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            margin-bottom: 50px;
+        }
+
+        .footer-logo {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .footer-desc {
+            margin-bottom: 20px;
+            color: #ccc;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .social-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .social-link:hover {
+            background-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .footer-title {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .footer-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 50px;
+            height: 2px;
+            background-color: var(--primary);
+        }
+
+        .footer-links li {
+            margin-bottom: 10px;
+        }
+
+        .footer-links a {
+            color: #ccc;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+            padding-left: 5px;
+        }
+
+        .contact-info li {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
+        .contact-info i {
+            margin-right: 15px;
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+
+        .copyright {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        /* Timeline Section */
+        .timeline {
+            position: relative;
+            max-width: 1200px;
+            margin: 50px auto;
+        }
+
+        .timeline::after {
+            content: '';
+            position: absolute;
+            width: 6px;
+            background-color: var(--primary);
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            margin-left: -3px;
+            border-radius: 3px;
+        }
+
+        .timeline-item {
+            padding: 10px 40px;
+            position: relative;
+            width: 50%;
+            box-sizing: border-box;
+        }
+
+        .timeline-item:nth-child(odd) {
+            left: 0;
+        }
+
+        .timeline-item:nth-child(even) {
+            left: 50%;
+        }
+
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            right: -10px;
+            background-color: white;
+            border: 4px solid var(--primary);
+            top: 15px;
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .timeline-item:nth-child(even)::after {
+            left: -14px;
+        }
+
+        .timeline-content {
+            padding: 20px 30px;
+            background-color: white;
+            position: relative;
+            border-radius: 6px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .timeline-content::after {
+            content: '';
+            position: absolute;
+            border-width: 10px;
+            border-style: solid;
+            top: 15px;
+        }
+
+        .timeline-item:nth-child(odd) .timeline-content::after {
+            border-color: transparent white transparent transparent;
+            right: -20px;
+        }
+
+        .timeline-item:nth-child(even) .timeline-content::after {
+            border-color: transparent transparent transparent white;
+            left: -20px;
+        }
+
+        .timeline-date {
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .timeline-title {
+            margin-bottom: 10px;
+            color: var(--secondary);
+            font-size: 1.2rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .section {
+                padding: 60px 0;
+            }
+
+            .about-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .timeline::after {
+                left: 31px;
+            }
+
+            .timeline-item {
+                width: 100%;
+                padding-left: 70px;
+                padding-right: 25px;
+            }
+
+            .timeline-item:nth-child(even) {
+                left: 0;
+            }
+
+            .timeline-item::after {
+                left: 17px;
+            }
+
+            .timeline-item:nth-child(even)::after {
+                left: 17px;
+            }
+
+            .timeline-content::after {
+                left: -20px;
+                border-color: transparent white transparent transparent;
+            }
+
+            .timeline-item:nth-child(even) .timeline-content::after {
+                left: -20px;
+                border-color: transparent white transparent transparent;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                position: fixed;
+                top: 80px;
+                left: -100%;
+                flex-direction: column;
+                background-color: white;
+                width: 100%;
+                text-align: center;
+                transition: var(--transition);
+                box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+                padding: 20px 0;
+            }
+
+            .nav-links.active {
+                left: 0;
+            }
+
+            .nav-link {
+                margin: 15px 0;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1.2rem;
+            }
+
+            .hero-btns {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .team-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container nav-container">
+            <div class="logo">
+                <img src="src/rustique_logo.png" alt="Rustique Logo">
+            </div>
+            <ul class="nav-links">
+                <li><a href="#accueil" class="nav-link">Accueil</a></li>
+                <li><a href="#projet" class="nav-link">Projet</a></li>
+                <li><a href="#fonctionnalites" class="nav-link">Fonctionnalités</a></li>
+                <li><a href="#equipe" class="nav-link">Équipe</a></li>
+                <li><a href="#telechargement" class="nav-link">Téléchargement</a></li>
+            </ul>
+            <div class="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="accueil" class="hero">
+        <div class="container hero-content">
+            <h1 class="hero-title">Créez des œuvres d'art numériques avec Rustique</h1>
+            <p class="hero-subtitle">Une application de peinture numérique moderne, performante et intuitive développée en Rust</p>
+            <div class="hero-btns">
+                <a href="#telechargement" class="btn">Télécharger</a>
+                <a href="#projet" class="btn btn-outline">En savoir plus</a>
+            </div>
+        </div>
+        <a href="#projet" class="scroll-down">
+            <i class="fas fa-chevron-down"></i>
+        </a>
+    </section>
+
+    <!-- About Section -->
+    <section id="projet" class="section about">
+        <div class="container">
+            <h2 class="section-title">À propos du projet</h2>
+            <div class="about-grid">
+                <div class="about-img">
+                    <img src="src/interface.png" alt="Rustique Interface">
+                </div>
+                <div class="about-content">
+                    <h2>Peinture numérique : Rustique</h2>
+                    <p class="about-text">Développé dans le cadre d'un projet universitaire (S4), Rustique est une application de peinture numérique conçue en Rust. Notre objectif est de créer un outil de dessin fonctionnel tout en explorant les concepts fondamentaux de la programmation en Rust et du développement d'interfaces graphiques.</p>
+                    <p class="about-text">L'application permet aux utilisateurs de créer des œuvres d'art numériques en utilisant divers outils de dessin et de peinture. Rustique fournit une interface intuitive pour la création artistique numérique tout en servant de plateforme d'apprentissage pour notre équipe.</p>
+                    <a href="#fonctionnalites" class="btn">Découvrir les fonctionnalités</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline Section -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">Chronologie du projet</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">Janvier 2025</div>
+                        <h3 class="timeline-title">Lancement du projet</h3>
+                        <p>Définition des objectifs et répartition des responsabilités entre les membres de l'équipe.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">7 Février 2025</div>
+                        <h3 class="timeline-title">Développement initial</h3>
+                        <p>Début du développement des fonctionnalités de base : outils de dessin, calques, interface utilisateur et sauvegarde.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">14 Février 2025</div>
+                        <h3 class="timeline-title">Développement avancé</h3>
+                        <p>Poursuite du développement et intégration des différentes fonctionnalités.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">21 Février 2025</div>
+                        <h3 class="timeline-title">Phase de test</h3>
+                        <p>Tests intensifs et corrections des bugs avant la première présentation officielle.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">24 Février 2025</div>
+                        <h3 class="timeline-title">Première soutenance</h3>
+                        <p>Présentation de la première version fonctionnelle du projet avec les fonctionnalités essentielles.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="fonctionnalites" class="section features">
+        <div class="container">
+            <h2 class="section-title">Fonctionnalités principales</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-paint-brush"></i>
+                    </div>
+                    <h3 class="feature-title">Outils de dessin</h3>
+                    <p class="feature-desc">Implémentation de pinceaux, crayons, gommes et formes de base. Contrôlez la taille et l'opacité de vos outils pour des résultats précis.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <h3 class="feature-title">Système de calques</h3>
+                    <p class="feature-desc">Création et gestion de calques pour une édition plus flexible. Fusionnez, dupliquez et organisez vos calques selon vos besoins.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-palette"></i>
+                    </div>
+                    <h3 class="feature-title">Palette de couleurs</h3>
+                    <p class="feature-desc">Sélection et gestion des couleurs. Créez, enregistrez et réutilisez vos couleurs préférées pour une expérience créative fluide.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-save"></i>
+                    </div>
+                    <h3 class="feature-title">Gestion de fichiers</h3>
+                    <p class="feature-desc">Sauvegarde et chargement d'images dans des formats courants (PNG, JPEG). Format de projet personnalisé pour conserver tous vos calques.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3 class="feature-title">Filtres personnalisés</h3>
+                    <p class="feature-desc">Application de filtres et d'effets inspirés du thème de la rouille pour donner un style unique à vos créations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <h3 class="feature-title">Performance</h3>
+                    <p class="feature-desc">Développé en Rust pour une efficacité et une sécurité optimales, garantissant une expérience fluide même sur des projets complexes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section id="equipe" class="section team">
+        <div class="container">
+            <h2 class="section-title">Notre équipe</h2>
+            <div class="team-grid">
+                <div class="team-member">
+                    <img src="/api/placeholder/400/400" alt="Vincent" class="member-img">
+                    <div class="member-info">
+                        <h3 class="member-name">Vincent</h3>
+                        <p class="member-role">Responsable des outils de dessin</p>
+                        <p class="member-desc">Développement des outils de dessin et de la palette de couleurs. Utilisation de la bibliothèque piet/wgpu pour le rendu graphique.</p>
+                    </div>
+                </div>
+                <div class="team-member">
+                    <img src="src/leonardo_monroc.jpg" alt="Leonardo" class="member-img">
+                    <div class="member-info">
+                        <h3 class="member-name">Leonardo</h3>
+                        <p class="member-role">Responsable du système de calques</p>
+                        <p class="member-desc">Implémentation du système de calques avec gestion de la création, suppression, organisation et visibilité. Utilisation de la bibliothèque eframe.</p>
+                    </div>
+                </div>
+                <div class="team-member">
+                    <img src="src/nabil_borous.jpg" alt="Nabil" class="member-img">
+                    <div class="member-info">
+                        <h3 class="member-name">Nabil</h3>
+                        <p class="member-role">Responsable de la gestion des fichiers</p>
+                        <p class="member-desc">Gestion des fichiers et des formats d'image avec sauvegarde et chargement dans des formats courants. Utilisation de la bibliothèque image.</p>
+                    </div>
+                </div>
+                <div class="team-member">
+                    <img src="/api/placeholder/400/400" alt="Aurélien" class="member-img">
+                    <div class="member-info">
+                        <h3 class="member-name">Aurélien</h3>
+                        <p class="member-role">Responsable de l'interface utilisateur</p>
+                        <p class="member-desc">Conception de l'interface utilisateur et de l'expérience utilisateur pour garantir une interaction fluide et intuitive. Utilisation de la bibliothèque egui.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="telechargement" class="section download">
+        <div class="container">
+            <h2 class="section-title download-title">Téléchargement</h2>
+            <p class="download-desc">Téléchargez Rustique pour commencer à créer dès maintenant. Disponible pour Windows, macOS et Linux.</p>
+            <div class="download-options">
+                <a href="#" class="download-btn">
+                    <i class="fab fa-windows"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">Windows</span>
+                    </div>
+                </a>
+                <a href="#" class="download-btn">
+                    <i class="fab fa-apple"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">macOS</span>
+                    </div>
+                </a>
+                <a href="#" class="download-btn">
+                    <i class="fab fa-linux"></i>
+                    <div class="download-text">
+                        <span class="download-small">Télécharger pour</span>
+                        <span class="download-large">Linux</span>
+                    </div>
+                </a>
+            </div>
+            <div style="margin-top: 30px;">
+                <a href="src/Rustique.pdf" class="btn btn-outline" target="_blank">Télécharger le rapport</a>
+            </div>
+        </div>
+    </section>
+</body>
+</html>
