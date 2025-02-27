@@ -1,6 +1,5 @@
 use egui::Color32;
 
-// Simple canvas structure for storing pixels
 #[derive(Clone)]
 pub struct Canvas {
     pub width: usize,

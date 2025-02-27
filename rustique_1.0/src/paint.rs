@@ -7,10 +7,8 @@ use rfd::FileDialog;
 
 use crate::canvas::Canvas;
 
-// Constants
 pub const CHECKERBOARD_SIZE: usize = 8;
 
-// Enum to represent different tools
 #[derive(PartialEq, Clone, Copy)]
 pub enum Tool {
     Brush,
@@ -19,7 +17,6 @@ pub enum Tool {
     ColorPicker,
 }
 
-// Main struct for the paint application
 pub struct PaintApp {
     pub canvas: Canvas,
     pub current_tool: Tool,
@@ -37,7 +34,6 @@ pub struct PaintApp {
 }
 
 impl PaintApp {
-    // Initialize a new PaintApp
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             canvas: Canvas::new(width as usize, height as usize),
@@ -56,9 +52,7 @@ impl PaintApp {
         }
     }
     
-    // Save the current image as a PNG file
     pub fn save_as_png(&mut self, path: &str) -> Result<(), String> {
-        // Make sure path has .png extension
         let path_with_ext = if !path.to_lowercase().ends_with(".png") {
             format!("{}.png", path)
         } else {
@@ -69,7 +63,6 @@ impl PaintApp {
         let height = self.canvas.height;
         let mut img = ImageBuffer::new(width as u32, height as u32);
         
-        // Process rows one by one
         for y in 0..height {
             for x in 0..width {
                 let color = self.canvas.get(x, y).unwrap_or(Color32::TRANSPARENT);
@@ -86,7 +79,6 @@ impl PaintApp {
         }
     }
 
-    // Draw a line between two points
     pub fn draw_line(&mut self, start: (i32, i32), end: (i32, i32), color: Color32) {
         let (x0, y0) = start;
         let (x1, y1) = end;
@@ -99,7 +91,6 @@ impl PaintApp {
         let mut x = x0;
         let mut y = y0;
 
-        // For large brush sizes, collect points
         let mut points = Vec::new();
         
         loop {
@@ -118,7 +109,6 @@ impl PaintApp {
             }
         }
         
-        // Draw points with the specified color
         let fill_color = if self.current_tool == Tool::Eraser { None } else { Some(color) };
         for &(px, py) in &points {
             self.draw_point_with_color(px, py, fill_color);
@@ -128,24 +118,20 @@ impl PaintApp {
         self.texture_dirty = true;
     }
 
-    // Draw a single point
     pub fn draw_point(&mut self, x: i32, y: i32) {
         let fill_color = if self.current_tool == Tool::Eraser { None } else { Some(self.primary_color) };
         self.draw_point_with_color(x, y, fill_color);
     }
     
-    // Helper function for drawing a point with a specific color
     pub fn draw_point_with_color(&mut self, x: i32, y: i32, fill_color: Option<Color32>) {
         let width = self.canvas.width as i32;
         let height = self.canvas.height as i32;
         let size = if self.current_tool == Tool::Eraser { self.eraser_size } else { self.brush_size };
         let size_squared = size * size;
         
-        // Collect all points that need to be modified
         let mut pixels = Vec::new();
         for dy in -size..=size {
             for dx in -size..=size {
-                // Use circle equation dx²+dy² ≤ r² for circular brush
                 if dx*dx + dy*dy <= size_squared {
                     let nx = x + dx;
                     let ny = y + dy;
@@ -156,7 +142,6 @@ impl PaintApp {
             }
         }
         
-        // Process all pixels sequentially
         for (nx, ny) in pixels {
             self.canvas.set(nx, ny, fill_color);
         }
@@ -165,24 +150,18 @@ impl PaintApp {
         self.texture_dirty = true;
     }
 
-    // Optimized paint bucket fill
     pub fn paint_bucket(&mut self, x: usize, y: usize) {
         if x >= self.canvas.width || y >= self.canvas.height {
             return;
         }
         
         let target_color = self.canvas.get(x, y);
-        let fill_color = if self.current_tool == Tool::Eraser {
-            None
-        } else {
-            Some(self.primary_color)
-        };
+        let fill_color = Some(self.primary_color);
         
         if target_color == fill_color {
             return;
         }
         
-        // Pre-allocate for better performance
         let mut queue = VecDeque::with_capacity(1024);
         let mut visited = vec![false; self.canvas.width * self.canvas.height];
         queue.push_back((x, y));
@@ -196,7 +175,6 @@ impl PaintApp {
             visited[idx] = true;
             self.canvas.set(cx, cy, fill_color);
             
-            // Add adjacent pixels to queue
             if cx > 0 { queue.push_back((cx - 1, cy)); }
             if cx + 1 < self.canvas.width { queue.push_back((cx + 1, cy)); }
             if cy > 0 { queue.push_back((cx, cy - 1)); }
@@ -208,23 +186,19 @@ impl PaintApp {
         self.texture_dirty = true;
     }
 
-    // Pick a color from the canvas
     pub fn pick_color(&mut self, x: usize, y: usize) {
         if let Some(color) = self.canvas.get(x, y) {
             self.primary_color = color;
         }
     }
 
-    // Optimized texture update
     pub fn update_texture(&mut self, ctx: &egui::Context) {
         if self.texture_dirty {
             let width = self.canvas.width;
             let height = self.canvas.height;
             
-            // Create the image data
             let mut image_data = vec![0_u8; width * height * 4];
             
-            // Process all pixels
             for y in 0..height {
                 for x in 0..width {
                     let color = if let Some(pixel) = self.canvas.get(x, y) {
@@ -285,7 +259,6 @@ impl eframe::App for PaintApp {
                         match self.save_as_png(path.to_str().unwrap()) {
                             Ok(_) => {},
                             Err(e) => {
-                                // Just print the error in console for this simple version
                                 eprintln!("Error saving PNG: {}", e);
                             }
                         }
@@ -334,12 +307,10 @@ impl eframe::App for PaintApp {
                 Rect::from_min_size(Pos2::ZERO, Vec2::new(canvas_width, canvas_height)),
             );
 
-            // Panning with middle button
             if response.dragged_by(egui::PointerButton::Middle) {
                 self.pan += response.drag_delta();
             }
 
-            // Handle drawing tools
             if (response.dragged() || response.clicked()) && 
                !(response.dragged_by(egui::PointerButton::Middle) || 
                  response.clicked_by(egui::PointerButton::Middle)) {
@@ -370,7 +341,6 @@ impl eframe::App for PaintApp {
                 self.last_position = None;
             }
 
-            // Zooming with mouse wheel
             let delta = ui.input(|i| i.scroll_delta.y);
             if delta != 0.0 {
                 let zoom_speed = 0.001;
@@ -378,7 +348,6 @@ impl eframe::App for PaintApp {
                 self.zoom *= 1.0 + delta * zoom_speed;
                 self.zoom = self.zoom.clamp(0.1, 10.0);
                 
-                // Zoom toward mouse cursor position
                 if let Some(mouse_pos) = ui.input(|i| i.pointer.hover_pos()) {
                     let center = ui.available_rect_before_wrap().center();
                     let mouse_offset = mouse_pos - center - self.pan;

@@ -1,9 +1,3 @@
-/**
- * Rustique V2 - Main JavaScript
- * Developed for the Rustique digital painting application website
- */
-
-// DOM Elements
 const loader = document.querySelector('.loader');
 const progress = document.querySelector('.progress');
 const header = document.querySelector('.header');
@@ -18,9 +12,6 @@ const backToTopBtn = document.querySelector('.back-to-top');
 const counterItems = document.querySelectorAll('.counter-number');
 const scrollLinks = document.querySelectorAll('[data-scroll]');
 
-/**
- * Page Preloader
- */
 const preloader = (() => {
     let loadedCount = 0;
     const totalItems = document.images.length + 2; // Images + CSS + JS
