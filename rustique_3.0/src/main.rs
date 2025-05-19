@@ -1,4 +1,5 @@
 mod main_menu;
+mod localization;
 
 use eframe::egui;
 use egui::{Color32, TextureHandle, TextureOptions, Rect, Pos2, Vec2, Stroke};
@@ -12,6 +13,7 @@ use std::io::Write;
 use serde::{Serialize, Deserialize};
 
 use main_menu::MainMenu;
+use localization::{Language, get_text};
 
 // Constants
 const MAX_UNDO_STEPS: usize = 20;
@@ -230,11 +232,12 @@ struct PaintApp {
     has_unsaved_changes: bool,
     last_save_path: Option<String>,
     save_dialog: SaveDialog,
+    language: Language,
 }
 
 impl PaintApp {
     // Initialize a new PaintApp
-    fn new(width: u32, height: u32) -> Self {
+    fn new(width: u32, height: u32, language: Language) -> Self {
         let initial_state = CanvasState::new(width as usize, height as usize);
         Self {
             current_state: initial_state,
@@ -261,11 +264,12 @@ impl PaintApp {
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
+            language,
         }
     }
 
     // Create a PaintApp from a .rustiq file
-    fn from_rustiq_file(file: RustiqueFile) -> Self {
+    fn from_rustiq_file(file: RustiqueFile, language: Language) -> Self {
         let mut canvas = CanvasState {
             width: file.width,
             height: file.height,
@@ -341,6 +345,7 @@ impl PaintApp {
             has_unsaved_changes: false,
             last_save_path: None,
             save_dialog: SaveDialog::Hidden,
+            language,
         }
     }
 
@@ -360,14 +365,14 @@ impl PaintApp {
         match format {
             FileFormat::Rustiq => self.save_as_rustiq(path),
             FileFormat::Unknown => {
-                Err(format!("Format not supported: {}", path))
+                Err(format!("{}: {}", get_text("format_not_supported", self.language), path))
             },
             _ => {
                 // Handle image formats
                 if let Some(image_format) = format.get_image_format() {
                     self.save_as_image(path, image_format)
                 } else {
-                    Err(format!("Format not supported: {}", path))
+                    Err(format!("{}: {}", get_text("format_not_supported", self.language), path))
                 }
             }
         }
@@ -393,12 +398,12 @@ impl PaintApp {
                 self.last_save_path = Some(path.to_string());
                 Ok(())
             },
-            Err(e) => Err(format!("Error saving image: {}", e)),
+            Err(e) => Err(format!("{}: {}", get_text("error_saving_image", self.language), e)),
         }
     }
     
     // Open any supported file
-    fn open_file(path: &str) -> Result<Self, String> {
+    fn open_file(path: &str, language: Language) -> Result<Self, String> {
         let format = Self::detect_format(path);
         
         match format {
@@ -408,18 +413,18 @@ impl PaintApp {
                     Ok(content) => {
                         match serde_json::from_str::<RustiqueFile>(&content) {
                             Ok(file) => {
-                                let mut app = Self::from_rustiq_file(file);
+                                let mut app = Self::from_rustiq_file(file, language);
                                 app.last_save_path = Some(path.to_string());
                                 Ok(app)
                             },
-                            Err(e) => Err(format!("Error reading Rustiq file: {}", e))
+                            Err(e) => Err(format!("{}: {}", get_text("error_reading_rustiq", language), e))
                         }
                     },
-                    Err(e) => Err(format!("Error reading file: {}", e))
+                    Err(e) => Err(format!("{}: {}", get_text("error_reading_file", language), e))
                 }
             },
             FileFormat::Unknown => {
-                Err(format!("Format not supported: {}", path))
+                Err(format!("{}: {}", get_text("format_not_supported", language), path))
             },
             _ => {
                 // Open image file
@@ -465,19 +470,20 @@ impl PaintApp {
                             has_unsaved_changes: false,
                             last_save_path: Some(path.to_string()),
                             save_dialog: SaveDialog::Hidden,
+                            language,
                         };
                         
                         Ok(app)
                     },
-                    Err(e) => Err(format!("Unable to open image: {}", e))
+                    Err(e) => Err(format!("{}: {}", get_text("unable_to_open_image", language), e))
                 }
             }
         }
     }
     
     // Create a PaintApp from a PNG file (deprecated but kept for backward compatibility)
-    fn from_png_file(path: &str) -> Option<Self> {
-        match Self::open_file(path) {
+    fn from_png_file(path: &str, language: Language) -> Option<Self> {
+        match Self::open_file(path, language) {
             Ok(app) => Some(app),
             Err(_) => None
         }
@@ -528,7 +534,7 @@ impl PaintApp {
         // Sérialiser avec gestion d'erreur
         let json = match serde_json::to_string(&rustiq_file) {
             Ok(json) => json,
-            Err(e) => return Err(format!("Serialization error: {}", e)),
+            Err(e) => return Err(format!("Erreur de sérialisation: {}", e)),
         };
         
         // Écrire avec gestion d'erreur
@@ -540,10 +546,10 @@ impl PaintApp {
                         self.last_save_path = Some(path.to_string());
                         Ok(())
                     },
-                    Err(e) => Err(format!("Write error: {}", e)),
+                    Err(e) => Err(format!("Erreur d'écriture: {}", e)),
                 }
             },
-            Err(e) => Err(format!("File creation error: {}", e)),
+            Err(e) => Err(format!("Erreur de création du fichier: {}", e)),
         }
     }
     
@@ -565,7 +571,7 @@ impl PaintApp {
             let path_clone = path.clone(); // Clone the path to end the immutable borrow
             self.save_file(&path_clone)    // Use the cloned path
         } else {
-            Err("No previous save path".into())
+            Err(get_text("no_previous_path", self.language))
         }
     }
 
@@ -949,6 +955,11 @@ impl PaintApp {
             return_to_menu
         };
     }
+    
+    // Set language
+    fn set_language(&mut self, language: Language) {
+        self.language = language;
+    }
 }
 
 // Action à effectuer après fermeture de dialogues
@@ -976,18 +987,20 @@ struct MyApp {
     rename_layer_index: Option<usize>,
     rename_layer_name: String,
     pending_action: PendingAction,
+    language: Language,
 }
 
 impl Default for MyApp {
     fn default() -> Self {
         Self {
-            state: AppState::MainMenu(MainMenu::new()),
+            state: AppState::MainMenu(MainMenu::new(Language::French)),
             error_message: None,
             show_error: false,
             new_layer_name: "New Layer".to_string(),
             rename_layer_index: None,
             rename_layer_name: String::new(),
             pending_action: PendingAction::None,
+            language: Language::French,
         }
     }
 }
@@ -1000,11 +1013,11 @@ impl eframe::App for MyApp {
         
         // Show error message dialog if needed
         if self.show_error {
-            egui::Window::new("Error")
+            egui::Window::new(get_text("error", self.language))
                 .collapsible(false)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    ui.label(self.error_message.as_deref().unwrap_or("An error occurred"));
+                    ui.label(self.error_message.as_deref().unwrap_or(&get_text("an_error_occurred", self.language)));
                     if ui.button("OK").clicked() {
                         self.show_error = false;
                     }
@@ -1013,7 +1026,7 @@ impl eframe::App for MyApp {
         
         // Process rename layer dialog
         if let Some(layer_idx) = self.rename_layer_index {
-            egui::Window::new("Rename Layer")
+            egui::Window::new(get_text("rename_layer", self.language))
                 .collapsible(false)
                 .resizable(false)
                 .show(ctx, |ui| {
@@ -1025,7 +1038,7 @@ impl eframe::App for MyApp {
                             }
                             self.rename_layer_index = None;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(get_text("cancel", self.language)).clicked() {
                             self.rename_layer_index = None;
                         }
                     });
@@ -1035,7 +1048,7 @@ impl eframe::App for MyApp {
         // Process pending actions
         match &self.pending_action {
             PendingAction::ReturnToMenu => {
-                self.state = AppState::MainMenu(MainMenu::new());
+                self.state = AppState::MainMenu(MainMenu::new(self.language));
                 self.pending_action = PendingAction::None;
             },
             PendingAction::HandleLayerAction(action) => {
@@ -1079,7 +1092,7 @@ impl eframe::App for MyApp {
                         main_menu::MenuResult::Action(action) => {
                             match action {
                                 main_menu::MenuAction::NewCanvas(width, height) => {
-                                    self.state = AppState::Canvas(PaintApp::new(width, height));
+                                    self.state = AppState::Canvas(PaintApp::new(width, height, self.language));
                                 },
                                 main_menu::MenuAction::OpenFile => {
                                     if let Some(path) = FileDialog::new()
@@ -1093,7 +1106,7 @@ impl eframe::App for MyApp {
                                         .add_filter("Rustique File", &["rustiq"])
                                         .set_directory("/")
                                         .pick_file() {
-                                        match PaintApp::open_file(path.to_str().unwrap()) {
+                                        match PaintApp::open_file(path.to_str().unwrap(), self.language) {
                                             Ok(app) => self.state = AppState::Canvas(app),
                                             Err(e) => {
                                                 self.error_message = Some(e);
@@ -1103,6 +1116,13 @@ impl eframe::App for MyApp {
                                     }
                                 }
                             }
+                        },
+                        main_menu::MenuResult::LanguageChanged(language) => {
+                            self.language = language;
+                            if let AppState::Canvas(paint_app) = &mut self.state {
+                                paint_app.set_language(language);
+                            }
+                            self.state = AppState::MainMenu(MainMenu::new(language));
                         }
                     }
                 }
@@ -1156,13 +1176,13 @@ impl eframe::App for MyApp {
                     SaveDialog::Hidden => {},
                     SaveDialog::AskingSave { return_to_menu } => {
                         let return_to_menu_val = *return_to_menu;
-                        egui::Window::new("Save Changes?")
+                        egui::Window::new(get_text("save_changes", self.language))
                             .collapsible(false)
                             .resizable(false)
                             .show(ctx, |ui| {
-                                ui.label("Do you want to save changes?");
+                                ui.label(get_text("want_to_save_changes", self.language));
                                 ui.horizontal(|ui| {
-                                    if ui.button("Yes").clicked() {
+                                    if ui.button(get_text("yes", self.language)).clicked() {
                                         // Open save dialog
                                         let result = if let Some(path) = FileDialog::new()
                                             .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
@@ -1194,13 +1214,13 @@ impl eframe::App for MyApp {
                                             }
                                         }
                                     }
-                                    if ui.button("No").clicked() {
+                                    if ui.button(get_text("no", self.language)).clicked() {
                                         paint_app.save_dialog = SaveDialog::Hidden;
                                         if return_to_menu_val {
                                             self.pending_action = PendingAction::ReturnToMenu;
                                         }
                                     }
-                                    if ui.button("Cancel").clicked() {
+                                    if ui.button(get_text("cancel", self.language)).clicked() {
                                         paint_app.save_dialog = SaveDialog::Hidden;
                                     }
                                 });
@@ -1213,22 +1233,22 @@ impl eframe::App for MyApp {
                 egui::SidePanel::left("layers_panel").show(ctx, |ui| {
                     ui.set_min_width(180.0);
                     ui.vertical(|ui| {
-                        ui.heading("Layers");
+                        ui.heading(get_text("layers", self.language));
                         ui.separator();
                         
                         // Layer controls
                         ui.horizontal(|ui| {
                             if ui.button("+").clicked() {
-                                paint_app.add_layer(format!("Layer {}", paint_app.current_state.layers.len() + 1));
+                                paint_app.add_layer(format!("{} {}", get_text("layer", self.language), paint_app.current_state.layers.len() + 1));
                             }
                             if ui.button("-").clicked() && paint_app.current_state.layers.len() > 1 {
                                 paint_app.remove_layer(paint_app.current_state.active_layer_index);
                             }
                             ui.add_space(5.0);
-                            if ui.button("Up").clicked() {
+                            if ui.button(get_text("up", self.language)).clicked() {
                                 paint_app.move_layer_up(paint_app.current_state.active_layer_index);
                             }
-                            if ui.button("Down").clicked() {
+                            if ui.button(get_text("down", self.language)).clicked() {
                                 paint_app.move_layer_down(paint_app.current_state.active_layer_index);
                             }
                         });
@@ -1273,26 +1293,26 @@ impl eframe::App for MyApp {
 
                 egui::SidePanel::right("tools_panel").show(ctx, |ui| {
                     ui.vertical(|ui| {
-                        ui.heading("Tools");
-                        if ui.button("Brush").clicked() {
+                        ui.heading(get_text("tools", self.language));
+                        if ui.button(get_text("brush", self.language)).clicked() {
                             paint_app.current_tool = Tool::Brush;
                         }
-                        if ui.button("Eraser").clicked() {
+                        if ui.button(get_text("eraser", self.language)).clicked() {
                             paint_app.current_tool = Tool::Eraser;
                         }
-                        if ui.button("Paint Bucket").clicked() {
+                        if ui.button(get_text("paint_bucket", self.language)).clicked() {
                             paint_app.current_tool = Tool::PaintBucket;
                         }
-                        if ui.button("Color Picker").clicked() {
+                        if ui.button(get_text("color_picker", self.language)).clicked() {
                             paint_app.current_tool = Tool::ColorPicker;
                         }
-                        if ui.button("Line").clicked() {
+                        if ui.button(get_text("line", self.language)).clicked() {
                             paint_app.current_tool = Tool::Line;
                         }
                         
                         ui.separator();
-                        ui.label("Save Options");
-                        if ui.button("Save File").clicked() {
+                        ui.label(get_text("save_options", self.language));
+                        if ui.button(get_text("save_file", self.language)).clicked() {
                             if let Some(path) = FileDialog::new()
                                 .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                 .add_filter("PNG Image", &["png"])
@@ -1317,24 +1337,24 @@ impl eframe::App for MyApp {
                         ui.separator();
                         
                         ui.add_space(10.0);
-                        ui.label("Brush Size:");
+                        ui.label(get_text("brush_size", self.language));
                         ui.add(egui::DragValue::new(&mut paint_app.brush_size).speed(0.1).clamp_range(1..=500));
                         
                         ui.add_space(10.0);
-                        ui.label("Eraser Size:");
+                        ui.label(get_text("eraser_size", self.language));
                         ui.add(egui::DragValue::new(&mut paint_app.eraser_size).speed(0.1).clamp_range(1..=500));
                         
                         ui.add_space(10.0);
-                        ui.label("Colors:");
+                        ui.label(get_text("colors", self.language));
                         ui.horizontal(|ui| {
-                            ui.label("Primary:");
+                            ui.label(get_text("primary", self.language));
                             ui.color_edit_button_srgba(&mut paint_app.primary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.primary_color);
                             }
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Secondary:");
+                            ui.label(get_text("secondary", self.language));
                             ui.color_edit_button_srgba(&mut paint_app.secondary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.secondary_color);
@@ -1342,14 +1362,14 @@ impl eframe::App for MyApp {
                         });
                         
                         ui.add_space(10.0);
-                        ui.label("Zoom:");
+                        ui.label(get_text("zoom", self.language));
                         ui.add(egui::Slider::new(&mut paint_app.zoom, 0.1..=10.0).logarithmic(true));
                         
                         // Saved colors palette
                         if !paint_app.saved_colors.is_empty() {
                             ui.add_space(10.0);
                             ui.separator();
-                            ui.label("Saved Colors:");
+                            ui.label(get_text("saved_colors", self.language));
                             
                             let available_width = ui.available_width();
                             let color_size = 24.0;
@@ -1376,9 +1396,9 @@ impl eframe::App for MyApp {
                                             }
                                             
                                             btn.on_hover_text(format!("{}\n{}\n{}",
-                                                "Left-click: set as primary color",
-                                                "Right-click: set as secondary color",
-                                                "Middle-click: delete"
+                                                get_text("left_click_primary", self.language),
+                                                get_text("right_click_secondary", self.language),
+                                                get_text("middle_click_delete", self.language)
                                             ));
                                         }
                                     }
@@ -1396,18 +1416,18 @@ impl eframe::App for MyApp {
                     
                     ui.horizontal(|ui| {
                         // Return to menu button
-                        if ui.button("Return to Menu").clicked() {
+                        if ui.button(get_text("return_to_menu", self.language)).clicked() {
                             return_clicked = true;
                         }
                         
-                        if ui.button("Undo").clicked() {
+                        if ui.button(get_text("undo", self.language)).clicked() {
                             undo_clicked = true;
                         }
-                        if ui.button("Redo").clicked() {
+                        if ui.button(get_text("redo", self.language)).clicked() {
                             redo_clicked = true;
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label("Right-click: secondary color | Ctrl+Z: Undo | Ctrl+Y: Redo | Ctrl+S: Save");
+                            ui.label(get_text("shortcuts_info", self.language));
                         });
                     });
                     (undo_clicked, redo_clicked, return_clicked)
@@ -1575,7 +1595,7 @@ impl eframe::App for MyApp {
                         }
                     }
 
-                    // Improved zooming with mouse wheel - zoom at center
+                    // Improved zooming with mouse wheel
                     let delta = ui.input(|i| i.scroll_delta.y);
                     if delta != 0.0 {
                         let zoom_speed = 0.001;
@@ -1583,29 +1603,13 @@ impl eframe::App for MyApp {
                         paint_app.zoom *= 1.0 + delta * zoom_speed;
                         paint_app.zoom = paint_app.zoom.clamp(0.1, 10.0);
                         
-                        // Zoom from center of the view
-                        let center = ui.available_rect_before_wrap().center();
-                        let view_center = center + paint_app.pan;
-                        let zoom_factor = paint_app.zoom / old_zoom;
-                        paint_app.pan = (view_center - center) * zoom_factor;
-                    }
-                    
-                    // Horizontal and vertical scrolling for pan
-                    let horizontal_scroll = ui.input(|i| i.scroll_delta.x);
-                    if horizontal_scroll != 0.0 {
-                        paint_app.pan.x -= horizontal_scroll * 0.5;
-                    }
-                    
-                    // Vertical scrolling if shift is held or mouse wheel is tilted
-                    let vertical_scroll = ui.input(|i| {
-                        if i.modifiers.shift {
-                            i.scroll_delta.y
-                        } else {
-                            0.0
+                        // Zoom toward mouse cursor position
+                        if let Some(mouse_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                            let center = ui.available_rect_before_wrap().center();
+                            let mouse_offset = mouse_pos - center - paint_app.pan;
+                            let zoom_factor = paint_app.zoom / old_zoom;
+                            paint_app.pan += mouse_offset * (1.0 - zoom_factor);
                         }
-                    });
-                    if vertical_scroll != 0.0 && ui.input(|i| i.modifiers.shift) {
-                        paint_app.pan.y -= vertical_scroll * 0.5;
                     }
                 });
             }

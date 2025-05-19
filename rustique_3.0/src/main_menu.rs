@@ -1,5 +1,6 @@
 use eframe::egui;
 use egui::{Color32, Vec2, Stroke, RichText};
+use crate::localization::{Language, get_text};
 
 // Enum to represent actions from the main menu
 pub enum MenuAction {
@@ -10,6 +11,7 @@ pub enum MenuAction {
 // Result from main menu
 pub enum MenuResult {
     Action(MenuAction),
+    LanguageChanged(Language),
 }
 
 pub struct MainMenu {
@@ -17,15 +19,17 @@ pub struct MainMenu {
     height: u32,
     logo: Option<egui::TextureHandle>,
     logo_size: f32,
+    language: Language,
 }
 
 impl MainMenu {
-    pub fn new() -> Self {
+    pub fn new(language: Language) -> Self {
         Self {
             width: 800,
             height: 600,
             logo: None,
             logo_size: 150.0, // This is now the target height of the logo
+            language,
         }
     }
     
@@ -68,6 +72,7 @@ impl MainMenu {
                     ui.heading(title);
                     
                     // Draw decorative underline
+                    let text_size = egui::TextStyle::Heading.resolve(ui.style()).size;
                     let line_width = 240.0;  // Width of underline
                     let line_start = ui.min_rect().center().x - line_width / 2.0;
                     let line_y = ui.min_rect().bottom() + 8.0;
@@ -79,6 +84,20 @@ impl MainMenu {
                 }
 
                 ui.add_space(40.0);
+
+                // Language selection
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(get_text("language", self.language)).size(16.0));
+                    if ui.button(RichText::new("Français").size(16.0)).clicked() {
+                        self.language = Language::French;
+                        result = Some(MenuResult::LanguageChanged(Language::French));
+                    }
+                    if ui.button(RichText::new("English").size(16.0)).clicked() {
+                        self.language = Language::English;
+                        result = Some(MenuResult::LanguageChanged(Language::English));
+                    }
+                });
+                
                 ui.add_space(20.0);
 
                 // Main panel
@@ -89,23 +108,23 @@ impl MainMenu {
                     .show(ui, |ui| {
                         ui.set_width(350.0);
                         ui.vertical_centered(|ui| {
-                            ui.heading(RichText::new("Canvas Dimensions").size(20.0));
+                            ui.heading(RichText::new(get_text("canvas_dimensions", self.language)).size(20.0));
                             ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Width:").size(16.0));
+                                ui.label(RichText::new(get_text("width", self.language)).size(16.0));
                                 ui.add(egui::DragValue::new(&mut self.width).speed(1).clamp_range(100..=4000));
                             });
 
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Height:").size(16.0));
+                                ui.label(RichText::new(get_text("height", self.language)).size(16.0));
                                 ui.add(egui::DragValue::new(&mut self.height).speed(1).clamp_range(100..=4000));
                             });
 
                             ui.add_space(25.0);
 
                             // Big button with nice styling
-                            let button_text = RichText::new("Create New Canvas")
+                            let button_text = RichText::new(get_text("create_new_canvas", self.language))
                                 .size(18.0)
                                 .color(Color32::WHITE);
                             
@@ -115,7 +134,8 @@ impl MainMenu {
 
                             ui.add_space(15.0);
                             
-                            let open_file_text = RichText::new("Open File").size(16.0);
+                            let open_file_text = RichText::new(get_text("open_file", self.language))
+                                .size(16.0);
                             
                             if ui.add(egui::Button::new(open_file_text).min_size(Vec2::new(180.0, 30.0))).clicked() {
                                 result = Some(MenuResult::Action(MenuAction::OpenFile));
@@ -126,7 +146,7 @@ impl MainMenu {
                 ui.add_space(30.0);
                 
                 // Footer info
-                ui.label(RichText::new("© 2025 Rustique Paint").size(14.0).color(Color32::from_rgb(180, 180, 200)));
+                ui.label(RichText::new("© 2023 Rustique Paint").size(14.0).color(Color32::from_rgb(180, 180, 200)));
             });
         });
 
