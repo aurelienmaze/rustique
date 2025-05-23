@@ -7,7 +7,7 @@ use image::{ImageBuffer, Rgba, ImageFormat};
 use std::collections::VecDeque;
 use rfd::FileDialog;
 use std::time::{Duration, Instant};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf; // Removed unused Path
 use std::fs;
 use std::io::Write;
 use serde::{Serialize, Deserialize};
@@ -34,7 +34,7 @@ enum Tool {
 }
 
 // Enum for Brush Types
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Debug)] // Added Debug
 pub enum BrushType {
     Round,
     Flat,
@@ -59,6 +59,20 @@ impl BrushType {
             BrushType::Mop,
             BrushType::Rigger,
         ]
+    }
+}
+
+// Helper function for brush display names
+fn get_brush_display_name(brush_type: BrushType) -> String {
+    match brush_type {
+        BrushType::Round => "● Round".to_string(),
+        BrushType::Flat => "▬ Flat".to_string(),
+        BrushType::Angle => "╱ Angle".to_string(),
+        BrushType::Filbert => "⬬ Filbert".to_string(),
+        BrushType::Rigger => "― Rigger".to_string(),
+        BrushType::Fan => "░ Fan".to_string(),
+        BrushType::Bright => "▭ Bright".to_string(),
+        BrushType::Mop => "☁ Mop".to_string(),
     }
 }
 
@@ -155,7 +169,7 @@ struct Layer {
 }
 
 // Layer structure for serialization
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)] // Added Clone
 struct LayerData {
     name: String,
     data: Vec<Option<[u8; 4]>>,
@@ -431,7 +445,7 @@ impl PaintApp {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             current_changes: Vec::new(),
-            current_tool: Tool::Brush,
+            current_tool: Tool::AdvancedBrush, // Changed Tool::Brush to Tool::AdvancedBrush
             primary_color,
             secondary_color,
             saved_colors,
@@ -552,7 +566,7 @@ impl PaintApp {
                             }
                         }
                         
-                        let mut app = Self {
+                        let app = Self { // Removed mut, as app is not mutated here
                             current_state: canvas,
                             undo_stack: Vec::new(),
                             redo_stack: Vec::new(),
@@ -872,42 +886,87 @@ impl PaintApp {
     }
 
     // Draw a line between two points
+    // Implements Bresenham's line algorithm.
+    // For certain brush types (Flat, Angle, Filbert), it temporarily adjusts brush hardness
+    // based on the stroke direction relative to the brush's orientation to create a "finesse" effect.
     fn draw_line(&mut self, start: (i32, i32), end: (i32, i32), color: Color32) {
-        let (x0, y0) = start;
-        let (x1, y1) = end;
-        let dx = (x1 - x0).abs();
-        let dy = -(y1 - y0).abs();
-        let sx = if x0 < x1 { 1 } else { -1 };
-        let sy = if y0 < y1 { 1 } else { -1 };
-        let mut err = dx + dy;
+        let fill_color = if self.current_tool == Tool::Eraser { None } else { Some(color) };
+        let original_hardness = self.current_brush_style.hardness; // Store original brush hardness
+        let mut hardness_changed = false;
 
-        let mut x = x0;
-        let mut y = y0;
+        if self.current_tool == Tool::AdvancedBrush &&
+           (self.current_brush_style.brush_type == BrushType::Flat ||
+            self.current_brush_style.brush_type == BrushType::Angle ||
+            self.current_brush_style.brush_type == BrushType::Filbert) {
+            
+            let stroke_dx = (end.0 - start.0) as f32;
+            let stroke_dy = (end.1 - start.1) as f32;
 
-        // For large brush sizes, collect points
-        let _size = if self.current_tool == Tool::Eraser { self.eraser_size } else { self.current_brush_style.size as i32 };
-        let mut points = Vec::new();
-        
-        loop {
-            points.push((x, y));
-            if x == x1 && y == y1 {
-                break;
-            }
-            let e2 = 2 * err;
-            if e2 >= dy {
-                err += dy;
-                x += sx;
-            }
-            if e2 <= dx {
-                err += dx;
-                y += sy;
+            if stroke_dx.hypot(stroke_dy) > 0.1 { // Only adapt if it's more than a dot, to avoid issues with atan2
+                let stroke_angle_rad = stroke_dy.atan2(stroke_dx); // Angle of the mouse movement
+                let brush_orientation_rad = self.current_brush_style.angle.to_radians(); // User-set brush angle
+                
+                // Calculate the difference between stroke angle and brush orientation.
+                // Normalize this difference to the range [0, PI/2] to represent how perpendicular the stroke is to the brush.
+                let mut angle_diff_rad = (stroke_angle_rad - brush_orientation_rad).abs();
+                
+                // Normalize to [0, PI]
+                if angle_diff_rad > std::f32::consts::PI { 
+                    angle_diff_rad = 2.0 * std::f32::consts::PI - angle_diff_rad; // Handles cases like -170deg vs 170deg
+                }
+                // Normalize to [0, PI/2] (e.g. 120deg difference is like 60deg for thickness effect)
+                if angle_diff_rad > std::f32::consts::FRAC_PI_2 { 
+                    angle_diff_rad = std::f32::consts::PI - angle_diff_rad; 
+                }
+
+                // thickness_factor:
+                // 0.0 when stroke is parallel to brush orientation (angle_diff_rad = 0).
+                // 1.0 when stroke is perpendicular to brush orientation (angle_diff_rad = PI/2).
+                // The sine curve provides a smooth transition.
+                let thickness_factor = (angle_diff_rad / std::f32::consts::FRAC_PI_2).sin();
+
+                match self.current_brush_style.brush_type {
+                    BrushType::Flat | BrushType::Angle => {
+                        // For Flat/Angle brushes, 'hardness' directly influences their thickness.
+                        // When stroke is parallel, use minimum thickness (factor * 0.1).
+                        // When stroke is perpendicular, use original thickness (factor * 1.0).
+                        let new_hardness = original_hardness * thickness_factor.max(0.1); // max(0.1) ensures some minimum thickness
+                        self.current_brush_style.hardness = new_hardness.clamp(0.01, 1.0); // Clamp to valid hardness range
+                        hardness_changed = true;
+                    }
+                    BrushType::Filbert => {
+                        // For Filbert brushes, 'hardness' controls the minor/major axis ratio (aspect).
+                        // Parallel stroke (factor=0): oval retains its original aspect ratio (defined by original_hardness).
+                        // Perpendicular stroke (factor=1): oval becomes more circular (aspect ratio approaches 1.0).
+                        let new_hardness = original_hardness * (1.0 - thickness_factor) + 1.0 * thickness_factor;
+                        self.current_brush_style.hardness = new_hardness.clamp(0.1, 1.0); // Clamp to valid aspect ratio range
+                        hardness_changed = true;
+                    }
+                    _ => {} // Other brush types (Round, Mop, etc.) do not use this adaptive finesse.
+                }
             }
         }
-        
-        // Draw points with the specified color
-        let fill_color = if self.current_tool == Tool::Eraser { None } else { Some(color) };
-        for &(px, py) in &points {
-            self.draw_point_with_color(px, py, fill_color);
+
+        // Bresenham's line algorithm to draw points along the stroke path
+        let (mut x0_bres, mut y0_bres) = start; // Use different names to avoid confusion with outer scope
+        let (x1_bres, y1_bres) = end;
+        let dx_bres = (x1_bres - x0_bres).abs();
+        let sx_bres = if x0_bres < x1_bres { 1 } else { -1 };
+        let dy_bres = -(y1_bres - y0_bres).abs();
+        let sy_bres = if y0_bres < y1_bres { 1 } else { -1 };
+        let mut err_bres = dx_bres + dy_bres;
+
+        loop {
+            self.draw_point_with_color(x0_bres, y0_bres, fill_color);
+            if x0_bres == x1_bres && y0_bres == y1_bres { break; }
+            let e2_bres = 2 * err_bres;
+            if e2_bres >= dy_bres { err_bres += dy_bres; x0_bres += sx_bres; }
+            if e2_bres <= dx_bres { err_bres += dx_bres; y0_bres += sy_bres; }
+        }
+        // End of Bresenham's
+
+        if hardness_changed {
+            self.current_brush_style.hardness = original_hardness; // Restore original hardness
         }
         
         self.last_action_time = Instant::now();
@@ -956,12 +1015,16 @@ impl PaintApp {
         } else if self.current_tool == Tool::AdvancedBrush {
             match self.current_brush_style.brush_type {
                 BrushType::Round => {
+                    // --- Round Brush Logic ---
+                    // Draws a circular brush mark.
+                    // Hardness controls the falloff of the alpha channel from the edge towards the center.
                     let brush_diameter = self.current_brush_style.size;
                     let brush_radius = brush_diameter / 2.0;
-                    let size_i32 = brush_radius.ceil() as i32; // Iterate up to the radius
+                    let size_i32 = brush_radius.ceil() as i32; // Iteration radius
 
                     let mut pixels_to_draw = Vec::new();
 
+                    // Collect pixels within the circle and their distance from the center
                     for dy_loop in -size_i32..=size_i32 {
                         for dx_loop in -size_i32..=size_i32 {
                             let dist_sq = (dx_loop * dx_loop + dy_loop * dy_loop) as f32;
@@ -975,13 +1038,15 @@ impl PaintApp {
                         }
                     }
                     
+                    // Apply color and hardness to the collected pixels
                     for (px_x, px_y, distance) in pixels_to_draw {
                         let mut actual_fill_color = fill_color;
                         if let Some(base_color) = actual_fill_color {
                             let hardness = self.current_brush_style.hardness;
                             let mut alpha_multiplier = 1.0;
-                            let hard_radius = brush_radius * hardness;
+                            let hard_radius = brush_radius * hardness; // Radius of the fully opaque center
 
+                            // Calculate alpha multiplier for soft edge if outside hard_radius
                             if distance > hard_radius {
                                 if brush_radius > hard_radius { // Avoid division by zero if hardness is 1.0
                                     alpha_multiplier = (brush_radius - distance) / (brush_radius - hard_radius);
@@ -991,38 +1056,112 @@ impl PaintApp {
                                 }
                             }
                             let new_alpha = (base_color.a() as f32 * alpha_multiplier).round() as u8;
-                            actual_fill_color = Some(base_color.with_a(new_alpha));
+                            actual_fill_color = Some(Color32::from_rgba_unmultiplied(base_color.r(), base_color.g(), base_color.b(), new_alpha));
                         }
                         self.record_change(px_x, px_y, actual_fill_color);
                     }
                     self.texture_dirty = true;
                 }
-                BrushType::Bright => {
-                    let brush_width = self.current_brush_style.size;
-                    // Bright brush: fixed thickness relative to width (e.g., 20%), hardness does not affect thickness.
-                    let brush_thickness = (brush_width * 0.20).max(1.0);
-
-                    let brush_angle_rad = self.current_brush_style.angle.to_radians();
-                    let cos_a = brush_angle_rad.cos();
-                    let sin_a = brush_angle_rad.sin();
-
-                    let bounding_box_dim = brush_width.hypot(brush_thickness);
-                    let size_half = (bounding_box_dim / 2.0).ceil() as i32;
-
-                    // canvas_width_i32 and canvas_height_i32 are already defined at the start of draw_point_with_color
-
-                    for dy_loop in -size_half..=size_half {
-                        for dx_loop in -size_half..=size_half {
+                BrushType::Mop => {
+                    // --- Mop Brush Logic ---
+                    // Simulates a large, very soft, semi-transparent round brush for blending or washing.
+                    // Ignores user-set angle. Hardness slider fine-tunes the inherent softness.
+                    let mop_diameter = self.current_brush_style.size;
+                    let mop_radius = mop_diameter / 2.0;
+            
+                    // Scale user hardness (0.0-1.0) to a much softer range (e.g., 0.01 to 0.25).
+                    let mop_hardness_param = self.current_brush_style.hardness;
+                    let actual_mop_hardness = (mop_hardness_param * 0.24 + 0.01).clamp(0.01, 0.25); 
+            
+                    let mop_base_alpha_multiplier = 0.3; // Base opacity for the mop
+            
+                    // Handle tiny mop brushes by drawing a single semi-transparent point
+                    if mop_radius < 0.5 { 
+                        if x >= 0 && x < canvas_width_i32 && y >= 0 && y < canvas_height_i32 {
+                            if let Some(base_color) = fill_color {
+                                let final_alpha = (base_color.a() as f32 * mop_base_alpha_multiplier).round() as u8;
+                                if final_alpha > 0 {
+                                    let actual_color = Color32::from_rgba_unmultiplied(base_color.r(), base_color.g(), base_color.b(), final_alpha);
+                                    self.record_change(x as usize, y as usize, Some(actual_color));
+                                }
+                            }
+                        }
+                        self.texture_dirty = true;
+                        return;
+                    }
+            
+                    let mop_radius_squared = mop_radius * mop_radius;
+                    let hard_radius = mop_radius * actual_mop_hardness; // Center part with less falloff
+            
+                    let size_half_i32 = mop_radius.ceil() as i32;
+            
+                    // Collect and color pixels within the mop's circular area
+                    for dy_loop in -size_half_i32..=size_half_i32 {
+                        for dx_loop in -size_half_i32..=size_half_i32 {
                             let px_x_i32 = x + dx_loop;
                             let px_y_i32 = y + dy_loop;
-
+            
                             if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
+                                let dist_sq = (dx_loop * dx_loop + dy_loop * dy_loop) as f32;
+            
+                                if dist_sq <= mop_radius_squared {
+                                    let distance = dist_sq.sqrt();
+                                    let mut hardness_alpha_multiplier = 1.0; // Alpha based on distance and softness
+            
+                                    if distance > hard_radius {
+                                        if mop_radius > hard_radius {
+                                            hardness_alpha_multiplier = (mop_radius - distance) / (mop_radius - hard_radius);
+                                        } else { 
+                                            hardness_alpha_multiplier = 0.0;
+                                        }
+                                        hardness_alpha_multiplier = hardness_alpha_multiplier.clamp(0.0, 1.0);
+                                    }
+                                    
+                                    if let Some(base_color) = fill_color {
+                                        let final_alpha = (base_color.a() as f32 * mop_base_alpha_multiplier * hardness_alpha_multiplier).round() as u8;
+                                        if final_alpha > 0 {
+                                            let actual_color = Color32::from_rgba_unmultiplied(base_color.r(), base_color.g(), base_color.b(), final_alpha);
+                                            self.record_change(px_x_i32 as usize, px_y_i32 as usize, Some(actual_color));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    self.texture_dirty = true;
+                }
+                BrushType::Bright => {
+                    // --- Bright Brush Logic ---
+                    // A rectangular brush, similar to Flat, but its thickness is a fixed proportion of its width,
+                    // and is not affected by the 'hardness' setting. 'hardness' is ignored for shape.
+                    let brush_width = self.current_brush_style.size;
+                    let brush_thickness = (brush_width * 0.20).max(1.0); // Fixed 20% thickness, min 1.0
+
+                    let brush_angle_rad = self.current_brush_style.angle.to_radians();
+                    let cos_a = brush_angle_rad.cos(); // Cosine of the brush's orientation angle
+                    let sin_a = brush_angle_rad.sin(); // Sine of the brush's orientation angle
+
+                    // Calculate a bounding box that covers the rotated rectangle
+                    let bounding_box_dim = brush_width.hypot(brush_thickness); // Diagonal of the rectangle
+                    let size_half = (bounding_box_dim / 2.0).ceil() as i32; // Half-size of the bounding box for iteration
+
+                    // Iterate over pixels in the bounding box
+                    for dy_loop in -size_half..=size_half {
+                        for dx_loop in -size_half..=size_half {
+                            let px_x_i32 = x + dx_loop; // Current pixel's X on canvas
+                            let px_y_i32 = y + dy_loop; // Current pixel's Y on canvas
+
+                            // Check if pixel is within canvas bounds
+                            if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
+                                // Translate pixel coordinates relative to the brush center
                                 let rel_dx = px_x_i32 as f32 - x as f32;
                                 let rel_dy = px_y_i32 as f32 - y as f32;
 
+                                // Rotate the relative coordinates to align with the brush's local axes
                                 let local_x = rel_dx * cos_a + rel_dy * sin_a;
                                 let local_y = -rel_dx * sin_a + rel_dy * cos_a;
 
+                                // Check if the rotated point is within the unrotated rectangle
                                 if local_x.abs() <= brush_width / 2.0 && local_y.abs() <= brush_thickness / 2.0 {
                                     self.record_change(px_x_i32 as usize, px_y_i32 as usize, fill_color);
                                 }
@@ -1032,41 +1171,53 @@ impl PaintApp {
                     self.texture_dirty = true;
                 }
                 BrushType::Fan => {
+                    // --- Fan Brush Logic ---
+                    // Simulates a fan by drawing multiple thin rectangular "bristles".
+                    // `bristle_count` controls the number of bristles.
+                    // `size` controls the length of bristles.
+                    // `hardness` influences the thickness of individual bristles.
+                    // `angle` controls the overall rotation of the fan.
                     let num_bristles = self.current_brush_style.bristle_count.unwrap_or(10).max(2) as usize;
                     let bristle_length = self.current_brush_style.size.max(1.0);
                     let bristle_thickness = (self.current_brush_style.hardness * bristle_length * 0.05).max(1.0).min(bristle_length * 0.2);
             
-                    let fan_spread_angle_deg = 90.0; 
-                    let overall_rotation_rad = self.current_brush_style.angle.to_radians();
+                    let fan_spread_angle_deg: f32 = 90.0; // Total angular spread of the fan
+                    let overall_rotation_rad = self.current_brush_style.angle.to_radians(); // User-defined fan rotation
             
+                    // Draw each bristle
                     for i in 0..num_bristles {
-                        let normalized_i = if num_bristles > 1 { i as f32 / (num_bristles - 1) as f32 } else { 0.5 }; 
+                        // Calculate angle for the current bristle within the fan spread
+                        let normalized_i = if num_bristles > 1 { i as f32 / (num_bristles - 1) as f32 } else { 0.5 }; // 0.0 to 1.0
                         let current_bristle_angle_offset_rad = (normalized_i - 0.5) * fan_spread_angle_deg.to_radians();
-                        let bristle_abs_angle_rad = current_bristle_angle_offset_rad + overall_rotation_rad;
+                        let bristle_abs_angle_rad = current_bristle_angle_offset_rad + overall_rotation_rad; // Absolute angle of bristle
             
-                        // Calculate center of this bristle (thin rectangle)
-                        // Bristle extends from (x,y) outwards. Midpoint is (x + L/2*cos, y + L/2*sin)
+                        // Bristles are drawn extending outwards from the brush center (x,y).
+                        // Calculate the midpoint of the current bristle.
                         let bristle_mid_x = x as f32 + (bristle_length / 2.0) * bristle_abs_angle_rad.cos();
                         let bristle_mid_y = y as f32 + (bristle_length / 2.0) * bristle_abs_angle_rad.sin();
             
                         let cos_b_rot = bristle_abs_angle_rad.cos();
                         let sin_b_rot = bristle_abs_angle_rad.sin();
             
+                        // Bounding box for the individual bristle
                         let bristle_bounding_box_dim = bristle_length.hypot(bristle_thickness);
                         let bristle_size_half = (bristle_bounding_box_dim / 2.0).ceil() as i32;
             
+                        // Iterate pixels around the bristle's midpoint
                         for dy_loop in -bristle_size_half..=bristle_size_half {
                             for dx_loop in -bristle_size_half..=bristle_size_half {
                                 let px_on_canvas_x = bristle_mid_x.round() as i32 + dx_loop;
                                 let px_on_canvas_y = bristle_mid_y.round() as i32 + dy_loop;
             
                                 if px_on_canvas_x >= 0 && px_on_canvas_x < canvas_width_i32 && px_on_canvas_y >= 0 && px_on_canvas_y < canvas_height_i32 {
+                                    // Transform pixel to bristle's local coordinates
                                     let rel_dx_to_bristle_mid = px_on_canvas_x as f32 - bristle_mid_x;
                                     let rel_dy_to_bristle_mid = px_on_canvas_y as f32 - bristle_mid_y;
             
                                     let local_x = rel_dx_to_bristle_mid * cos_b_rot + rel_dy_to_bristle_mid * sin_b_rot;
                                     let local_y = -rel_dx_to_bristle_mid * sin_b_rot + rel_dy_to_bristle_mid * cos_b_rot;
             
+                                    // Check if within the bristle's rectangular footprint
                                     if local_x.abs() <= bristle_length / 2.0 && local_y.abs() <= bristle_thickness / 2.0 {
                                         self.record_change(px_on_canvas_x as usize, px_on_canvas_y as usize, fill_color);
                                     }
@@ -1077,24 +1228,25 @@ impl PaintApp {
                     self.texture_dirty = true;
                 }
                 BrushType::Rigger => {
+                    // --- Rigger Brush Logic ---
+                    // A very small, hard, round brush for fine lines.
+                    // Ignores size, angle, and hardness from BrushStyle.
                     let rigger_diameter = 2.0; 
-                    let rigger_radius = rigger_diameter / 2.0;
-                    // For a rigger, we typically want a hard edge, so no complex alpha falloff.
-                    // The iteration below will create a small circular footprint.
+                    let rigger_radius: f32 = rigger_diameter / 2.0; 
                     
-                    // Bounding box for a small circle.
-                    // If rigger_radius is 1.0, size_half_i32 will be 1. Iteration: -1, 0, 1.
-                    let size_half_i32 = rigger_radius.ceil() as i32;
+                    // Bounding box for the small circle
+                    let size_half_i32 = rigger_radius.ceil() as i32; // For a radius of 1.0, this is 1.
 
-                    for dy_loop in -size_half_i32..=size_half_i32 {
+                    // Iterate pixels in the bounding box
+                    for dy_loop in -size_half_i32..=size_half_i32 { // Loop from -1 to 1 if radius is 1.0
                         for dx_loop in -size_half_i32..=size_half_i32 {
                             let px_x_i32 = x + dx_loop;
                             let px_y_i32 = y + dy_loop;
 
                             if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
-                                // Check if within the small circle (distance from center of the loop area)
+                                // Check if the pixel is within the small circle
                                 let dist_sq = (dx_loop * dx_loop + dy_loop * dy_loop) as f32;
-                                if dist_sq <= rigger_radius * rigger_radius { // Using rigger_radius directly here, not squared
+                                if dist_sq <= rigger_radius * rigger_radius {
                                     self.record_change(px_x_i32 as usize, px_y_i32 as usize, fill_color);
                                 }
                             }
@@ -1103,19 +1255,23 @@ impl PaintApp {
                     self.texture_dirty = true;
                 }
                 BrushType::Filbert => {
+                    // --- Filbert Brush Logic ---
+                    // An oval (elliptical) brush.
+                    // `size` controls the major axis length.
+                    // `hardness` controls the aspect ratio (minor_axis / major_axis), clamped between 0.1 (flat) and 1.0 (circular).
+                    // `angle` controls the rotation of the oval.
                     let brush_major_axis = self.current_brush_style.size;
-                    // Hardness controls roundness: 1.0 is rounder (closer to circle), 0.1 is flatter oval
                     let brush_minor_axis_factor = self.current_brush_style.hardness.max(0.1).min(1.0); 
                     let brush_minor_axis = brush_major_axis * brush_minor_axis_factor;
 
                     let oval_rotation_rad = self.current_brush_style.angle.to_radians();
-                    let cos_rot = oval_rotation_rad.cos();
-                    let sin_rot = oval_rotation_rad.sin();
+                    let cos_rot = oval_rotation_rad.cos(); // Cosine of the oval's rotation
+                    let sin_rot = oval_rotation_rad.sin(); // Sine of the oval's rotation
 
-                    let semi_major = brush_major_axis / 2.0;
-                    let semi_minor = brush_minor_axis / 2.0;
+                    let semi_major = brush_major_axis / 2.0; // Half of the major axis
+                    let semi_minor = brush_minor_axis / 2.0; // Half of the minor axis
 
-                    // Prevent division by zero or extreme cases & handle tiny brushes
+                    // Handle very small brushes by drawing a single point
                     if semi_major < 0.5 || semi_minor < 0.5 { 
                         if x >=0 && x < canvas_width_i32 && y >= 0 && y < canvas_height_i32 {
                              self.record_change(x as usize, y as usize, fill_color);
@@ -1124,28 +1280,29 @@ impl PaintApp {
                         return; 
                     }
                     
+                    // Pre-calculate squared semi-axes for the ellipse equation
                     let square_semi_major = semi_major * semi_major;
                     let square_semi_minor = semi_minor * semi_minor;
 
-                    // Bounding box for iteration based on the major axis, as it's the largest extent before rotation.
-                    // Rotation is handled by transforming pixel coordinates, not by changing bounding box shape here.
+                    // Bounding box for iteration: use the larger of the semi-axes to define the radius
                     let bounding_box_radius = (semi_major.max(semi_minor)).ceil() as i32;
 
-
+                    // Iterate pixels in the bounding box
                     for dy_loop in -bounding_box_radius..=bounding_box_radius {
                         for dx_loop in -bounding_box_radius..=bounding_box_radius {
                             let px_x_i32 = x + dx_loop;
                             let px_y_i32 = y + dy_loop;
 
                             if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
+                                // Translate pixel to be relative to the ellipse center
                                 let rel_dx = px_x_i32 as f32 - x as f32;
                                 let rel_dy = px_y_i32 as f32 - y as f32;
 
-                                // Rotate the pixel's relative coordinates to align with the ellipse's local axes
+                                // Rotate the relative coordinates to align with the ellipse's local axes
                                 let local_x = rel_dx * cos_rot + rel_dy * sin_rot;
                                 let local_y = -rel_dx * sin_rot + rel_dy * cos_rot;
 
-                                // Ellipse equation: (local_x^2 / semi_major^2) + (local_y^2 / semi_minor^2) <= 1
+                                // Check if the point is within the ellipse using the standard ellipse equation
                                 if (local_x * local_x) / square_semi_major + (local_y * local_y) / square_semi_minor <= 1.0 {
                                     self.record_change(px_x_i32 as usize, px_y_i32 as usize, fill_color);
                                 }
@@ -1155,43 +1312,46 @@ impl PaintApp {
                     self.texture_dirty = true;
                 }
                 BrushType::Angle => {
+                    // --- Angle Brush Logic ---
+                    // A rectangular brush sheared into a parallelogram, with an intrinsic 45-degree angle.
+                    // `size` controls the main width of the brush.
+                    // `hardness` affects the thickness of the brush.
+                    // `angle` controls the overall rotation of this shape.
                     let brush_width = self.current_brush_style.size;
                     let mut brush_thickness = self.current_brush_style.hardness * brush_width * 0.25; 
                     if brush_thickness < 1.0 { brush_thickness = 1.0; }
 
-                    let overall_rotation_rad = self.current_brush_style.angle.to_radians();
-                    let cos_rot = overall_rotation_rad.cos();
-                    let sin_rot = overall_rotation_rad.sin();
+                    let overall_rotation_rad = self.current_brush_style.angle.to_radians(); // User-defined rotation
+                    let cos_rot = overall_rotation_rad.cos(); // Cosine for overall rotation
+                    let sin_rot = overall_rotation_rad.sin(); // Sine for overall rotation
 
-                    let intrinsic_angle_rad = (45.0f32).to_radians(); // 45-degree intrinsic angle
-                    let tan_intrinsic = intrinsic_angle_rad.tan();
+                    let intrinsic_angle_rad = (45.0f32).to_radians(); // Fixed 45-degree intrinsic shear angle
+                    let tan_intrinsic = intrinsic_angle_rad.tan(); // Tangent of the shear angle for y-offset calculation
 
-                    // Bounding box needs to cover the brush at any rotation and shear
-                    // A simple bounding box for the un-sheared rotated rectangle:
+                    // Calculate bounding box considering rotation and shear
                     let base_bounding_box_dim = brush_width.hypot(brush_thickness);
-                    // Account for additional extent due to shear: max_shear_offset = (brush_width / 2.0) * tan_intrinsic
-                    // This component adds to the 'height' of the bounding box in one direction.
-                    // A more generous bounding box can be simpler:
-                    let size_half = (base_bounding_box_dim / 2.0 + (brush_width / 2.0 * tan_intrinsic).abs()).ceil() as i32;
+                    let max_shear_offset = (brush_width / 2.0) * tan_intrinsic.abs();
+                    let size_half = (base_bounding_box_dim / 2.0 + max_shear_offset).ceil() as i32;
 
-
+                    // Iterate pixels in the bounding box
                     for dy_loop in -size_half..=size_half {
                         for dx_loop in -size_half..=size_half {
                             let px_x_i32 = x + dx_loop;
                             let px_y_i32 = y + dy_loop;
 
                             if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
+                                // Translate relative to brush center
                                 let rel_dx = px_x_i32 as f32 - x as f32;
                                 let rel_dy = px_y_i32 as f32 - y as f32;
 
-                                // Rotate to align with user-defined overall brush angle
+                                // Apply overall rotation
                                 let rotated_dx = rel_dx * cos_rot + rel_dy * sin_rot;
                                 let rotated_dy = -rel_dx * sin_rot + rel_dy * cos_rot;
 
-                                // Now check against the intrinsic shape (parallelogram/sheared rectangle)
-                                // Condition 1: Check if within the main width (along the brush's rotated x-axis)
+                                // Check if within the parallelogram:
+                                // 1. Within the main width (along the brush's rotated x-axis).
                                 if rotated_dx.abs() <= brush_width / 2.0 {
-                                    // Condition 2: Check if within the sheared thickness
+                                    // 2. Within the sheared thickness (along the brush's rotated y-axis, adjusted for shear).
                                     let y_offset_due_to_shear = rotated_dx * tan_intrinsic;
                                     if (rotated_dy - y_offset_due_to_shear).abs() <= brush_thickness / 2.0 {
                                         self.record_change(px_x_i32 as usize, px_y_i32 as usize, fill_color);
@@ -1203,29 +1363,38 @@ impl PaintApp {
                     self.texture_dirty = true;
                 }
                 BrushType::Flat => {
+                    // --- Flat Brush Logic ---
+                    // A simple rotated rectangle.
+                    // `size` controls the width.
+                    // `hardness` controls the thickness (height) of the rectangle.
+                    // `angle` controls the rotation.
                     let brush_width = self.current_brush_style.size;
                     let mut brush_thickness = self.current_brush_style.hardness * brush_width * 0.25;
-                    if brush_thickness < 1.0 { brush_thickness = 1.0; }
+                    if brush_thickness < 1.0 { brush_thickness = 1.0; } // Ensure minimum thickness
 
                     let brush_angle_rad = self.current_brush_style.angle.to_radians();
                     let cos_a = brush_angle_rad.cos();
                     let sin_a = brush_angle_rad.sin();
 
-                    // Bounding box for iteration - should be large enough for rotated brush
+                    // Bounding box for iteration
                     let size_half = (brush_width.hypot(brush_thickness) / 2.0).ceil() as i32;
 
+                    // Iterate pixels in the bounding box
                     for dy_loop in -size_half..=size_half {
                         for dx_loop in -size_half..=size_half {
                             let px_x_i32 = x + dx_loop;
                             let px_y_i32 = y + dy_loop;
 
                             if px_x_i32 >= 0 && px_x_i32 < canvas_width_i32 && px_y_i32 >= 0 && px_y_i32 < canvas_height_i32 {
+                                // Translate relative to brush center
                                 let rel_dx = px_x_i32 as f32 - x as f32;
                                 let rel_dy = px_y_i32 as f32 - y as f32;
 
+                                // Rotate to align with brush's local axes
                                 let local_x = rel_dx * cos_a + rel_dy * sin_a;
                                 let local_y = -rel_dx * sin_a + rel_dy * cos_a;
 
+                                // Check if within the unrotated rectangle dimensions
                                 if local_x.abs() <= brush_width / 2.0 && local_y.abs() <= brush_thickness / 2.0 {
                                     self.record_change(px_x_i32 as usize, px_y_i32 as usize, fill_color);
                                 }
@@ -1234,14 +1403,17 @@ impl PaintApp {
                     }
                     self.texture_dirty = true;
                 }
-                _ => {
-                    // Fallback for other brush types (e.g., could default to Round or do nothing)
-                    // For now, let's make it behave like a simple Round brush of fixed size without hardness
-                    let size = (self.current_brush_style.size / 2.0).ceil() as i32;
-                    let size_squared = size * size;
-                    for dy_loop in -size..=size {
-                        for dx_loop in -size..=size {
-                            if dx_loop * dx_loop + dy_loop * dy_loop <= size_squared {
+                _ => { // Fallback for any other unimplemented BrushType variants
+                    // Defaults to a simple, hard, round brush based on current_brush_style.size.
+                    // This ensures that newly added brush types have some visual representation
+                    // before their specific logic is implemented.
+                    let fallback_radius = (self.current_brush_style.size / 2.0).max(0.5); // Ensure at least a tiny radius
+                    let fallback_radius_sq = fallback_radius * fallback_radius;
+                    let iter_bound = fallback_radius.ceil() as i32;
+
+                    for dy_loop in -iter_bound..=iter_bound {
+                        for dx_loop in -iter_bound..=iter_bound {
+                            if (dx_loop * dx_loop + dy_loop * dy_loop) as f32 <= fallback_radius_sq {
                                 let px_x = x + dx_loop;
                                 let px_y = y + dy_loop;
                                 if px_x >= 0 && px_x < canvas_width_i32 && px_y >= 0 && px_y < canvas_height_i32 {
@@ -1254,8 +1426,10 @@ impl PaintApp {
                 }
             }
         }
-        // Other tools (PaintBucket, ColorPicker, Line) don't use draw_point_with_color directly for their main effect.
-        // Line tool calls draw_line, which calls draw_point_with_color, so it will use the AdvancedBrush logic.
+        // Note: Tools like PaintBucket, ColorPicker, and the Line tool (when first placing points)
+        // do not directly use this `draw_point_with_color` for their primary effect.
+        // The Line tool *does* use `draw_line`, which in turn calls this function for each point along the line,
+        // thus applying the selected AdvancedBrush shape.
     }
 
     // Optimized paint bucket fill
@@ -1719,36 +1893,40 @@ impl eframe::App for MyApp {
                         ui.separator();
 
                         // New "Brush Types" section
-                        ui.heading(get_text("brush_types", self.language)); // Assuming "brush_types" key exists or using placeholder
+                        ui.heading(get_text("brush_types", paint_app.language)); // Use paint_app.language
                         for brush_variant in BrushType::all_variants() {
-                            if ui.button(format!("{:?}", brush_variant)).clicked() {
+                            if ui.button(get_brush_display_name(brush_variant)).clicked() { 
                                 paint_app.current_tool = Tool::AdvancedBrush;
                                 let old_style = paint_app.current_brush_style.clone();
                                 paint_app.current_brush_style.brush_type = brush_variant;
-                                paint_app.current_brush_style.size = old_style.size;
-                                paint_app.current_brush_style.hardness = old_style.hardness;
+                                paint_app.current_brush_style.size = old_style.size; // Preserve size
+                                paint_app.current_brush_style.hardness = old_style.hardness; // Preserve hardness
 
                                 match brush_variant {
                                     BrushType::Round | BrushType::Mop | BrushType::Rigger | 
-                                    BrushType::Filbert | BrushType::Bright | BrushType::Fan => {
+                                    BrushType::Filbert | BrushType::Bright => { // Fan removed from here
                                         paint_app.current_brush_style.angle = 0.0;
+                                        paint_app.current_brush_style.bristle_count = None; // Reset for non-fan brushes
+                                    }
+                                    BrushType::Fan => {
+                                        paint_app.current_brush_style.angle = 0.0; // Fan brushes typically don't rotate the entire fan shape via 'angle'
+                                        if paint_app.current_brush_style.bristle_count.is_none() {
+                                            paint_app.current_brush_style.bristle_count = Some(10); // Default if None
+                                        }
                                     }
                                     BrushType::Flat | BrushType::Angle => {
-                                        // Preserve angle for these types, or set to old_style.angle
-                                        // If old_style.angle was specific to a non-angle brush,
-                                        // it might be better to reset to 0.0 too.
-                                        // For now, preserving as per refined instruction for Flat/Angle.
-                                        paint_app.current_brush_style.angle = old_style.angle;
+                                        paint_app.current_brush_style.angle = old_style.angle; // Preserve for Flat/Angle
+                                        paint_app.current_brush_style.bristle_count = None; // Reset for non-fan brushes
                                     }
                                 }
-                                paint_app.current_brush_style.bristle_count = None;
-                                paint_app.current_brush_style.taper_strength = None;
+                                // taper_strength is always reset for now
+                                paint_app.current_brush_style.taper_strength = None; 
                             }
                         }
                         ui.separator();
 
-                        ui.label(get_text("save_options", self.language));
-                        if ui.button(get_text("save_file", self.language)).clicked() {
+                        ui.label(get_text("save_options", paint_app.language)); // Use paint_app.language
+                        if ui.button(get_text("save_file", paint_app.language)).clicked() { // Use paint_app.language
                             if let Some(path) = FileDialog::new()
                                 .add_filter("All Supported Files", &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp", "rustiq"])
                                 .add_filter("PNG Image", &["png"])
@@ -1773,38 +1951,50 @@ impl eframe::App for MyApp {
                         ui.separator();
                         
                         ui.add_space(10.0);
-                        ui.label(get_text("brush_settings", self.language));
+                        ui.label(get_text("brush_settings", paint_app.language)); // Use paint_app.language
                         // Display current brush type:
-                        ui.label(format!("{}: {:?}", get_text("brush_type", self.language), paint_app.current_brush_style.brush_type));
+                        ui.label(format!(get_text("brush_type_display", paint_app.language).as_str(), get_brush_display_name(paint_app.current_brush_style.brush_type))); // Use paint_app.language and new key
                         
                         ui.horizontal(|ui| {
-                            ui.label(get_text("brush_size", self.language)); // Ensure this key exists
+                            ui.label(get_text("brush_size", paint_app.language)); // Use paint_app.language
                             ui.add(egui::DragValue::new(&mut paint_app.current_brush_style.size).speed(0.1).clamp_range(1.0..=500.0));
                         });
                         ui.horizontal(|ui| {
-                            ui.label(get_text("brush_angle", self.language)); // Ensure this key exists
+                            ui.label(get_text("brush_angle", paint_app.language)); // Use paint_app.language
                             ui.add(egui::DragValue::new(&mut paint_app.current_brush_style.angle).speed(1.0).clamp_range(-180.0..=180.0));
                         });
                         ui.horizontal(|ui| {
-                            ui.label(get_text("brush_hardness", self.language)); // Ensure this key exists
+                            ui.label(get_text("brush_hardness", paint_app.language));  // Use paint_app.language
                             ui.add(egui::Slider::new(&mut paint_app.current_brush_style.hardness, 0.0..=1.0));
                         });
+
+                        // Conditional UI for bristle_count (Fan brush)
+                        if paint_app.current_brush_style.brush_type == BrushType::Fan {
+                            ui.add_space(5.0);
+                            ui.horizontal(|ui| {
+                                ui.label(get_text("bristle_count", paint_app.language)); // Use paint_app.language
+                                let mut bristle_val = paint_app.current_brush_style.bristle_count.unwrap_or(10);
+                                if ui.add(egui::DragValue::new(&mut bristle_val).speed(1.0).clamp_range(2_u32..=50_u32)).changed() {
+                                    paint_app.current_brush_style.bristle_count = Some(bristle_val.max(2));
+                                }
+                            });
+                        }
                         
                         ui.add_space(10.0);
-                        ui.label(get_text("eraser_size", self.language)); // Ensure this key exists
+                        ui.label(get_text("eraser_size", paint_app.language)); // Use paint_app.language
                         ui.add(egui::DragValue::new(&mut paint_app.eraser_size).speed(0.1).clamp_range(1..=500));
                         
                         ui.add_space(10.0);
-                        ui.label(get_text("colors", self.language));
+                        ui.label(get_text("colors", paint_app.language)); // Use paint_app.language
                         ui.horizontal(|ui| {
-                            ui.label(get_text("primary", self.language));
+                            ui.label(get_text("primary", paint_app.language)); // Use paint_app.language
                             ui.color_edit_button_srgba(&mut paint_app.primary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.primary_color);
                             }
                         });
                         ui.horizontal(|ui| {
-                            ui.label(get_text("secondary", self.language));
+                            ui.label(get_text("secondary", paint_app.language)); // Use paint_app.language
                             ui.color_edit_button_srgba(&mut paint_app.secondary_color);
                             if ui.button("+").clicked() {
                                 paint_app.add_saved_color(paint_app.secondary_color);
@@ -1812,14 +2002,14 @@ impl eframe::App for MyApp {
                         });
                         
                         ui.add_space(10.0);
-                        ui.label(get_text("zoom", self.language));
+                        ui.label(get_text("zoom", paint_app.language)); // Use paint_app.language
                         ui.add(egui::Slider::new(&mut paint_app.zoom, 0.1..=10.0).logarithmic(true));
                         
                         // Saved colors palette
                         if !paint_app.saved_colors.is_empty() {
                             ui.add_space(10.0);
                             ui.separator();
-                            ui.label(get_text("saved_colors", self.language));
+                            ui.label(get_text("saved_colors", paint_app.language)); // Use paint_app.language
                             
                             let available_width = ui.available_width();
                             let color_size = 24.0;
@@ -1846,9 +2036,9 @@ impl eframe::App for MyApp {
                                             }
                                             
                                             btn.on_hover_text(format!("{}\n{}\n{}",
-                                                get_text("left_click_primary", self.language),
-                                                get_text("right_click_secondary", self.language),
-                                                get_text("middle_click_delete", self.language)
+                                                get_text("left_click_primary", paint_app.language), // Use paint_app.language
+                                                get_text("right_click_secondary", paint_app.language), // Use paint_app.language
+                                                get_text("middle_click_delete", paint_app.language) // Use paint_app.language
                                             ));
                                         }
                                     }

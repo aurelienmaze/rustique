@@ -47,6 +47,11 @@ fn get_french_text(key: &str) -> String {
         ("eraser_size", "Taille de la gomme:"),
         ("colors", "Couleurs:"),
         ("primary", "Primaire:"),
+        // Brush System UI
+        ("brush_types", "Types de Pinceau"),
+        ("brush_settings", "Réglages du Pinceau"),
+        ("brush_type_display", "Type : %1"), // %1 will be replaced by brush name
+        ("bristle_count", "Nombre de Poils :"),
         ("secondary", "Secondaire:"),
         ("zoom", "Zoom:"),
         ("saved_colors", "Couleurs sauvegardées:"),
@@ -125,6 +130,11 @@ fn get_english_text(key: &str) -> String {
         ("eraser_size", "Eraser Size:"),
         ("colors", "Colors:"),
         ("primary", "Primary:"),
+        // Brush System UI
+        ("brush_types", "Brush Types"),
+        ("brush_settings", "Brush Settings"),
+        ("brush_type_display", "Type: %1"), // %1 will be replaced by brush name
+        ("bristle_count", "Bristle Count:"),
         ("secondary", "Secondary:"),
         ("zoom", "Zoom:"),
         ("saved_colors", "Saved Colors:"),

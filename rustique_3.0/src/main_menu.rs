@@ -72,7 +72,7 @@ impl MainMenu {
                     ui.heading(title);
                     
                     // Draw decorative underline
-                    let text_size = egui::TextStyle::Heading.resolve(ui.style()).size;
+                    let _text_size = egui::TextStyle::Heading.resolve(ui.style()).size; // Prefixed with underscore
                     let line_width = 240.0;  // Width of underline
                     let line_start = ui.min_rect().center().x - line_width / 2.0;
                     let line_y = ui.min_rect().bottom() + 8.0;
