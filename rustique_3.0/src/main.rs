@@ -1953,7 +1953,8 @@ impl eframe::App for MyApp {
                         ui.add_space(10.0);
                         ui.label(get_text("brush_settings", paint_app.language)); // Use paint_app.language
                         // Display current brush type:
-                        ui.label(format!(get_text("brush_type_display", paint_app.language).as_str(), get_brush_display_name(paint_app.current_brush_style.brush_type))); // Use paint_app.language and new key
+                        let format_string = get_text("brush_type_display", paint_app.language);
+                        ui.label(format!("{}", format_string.replace("%1", &get_brush_display_name(paint_app.current_brush_style.brush_type))));
                         
                         ui.horizontal(|ui| {
                             ui.label(get_text("brush_size", paint_app.language)); // Use paint_app.language
